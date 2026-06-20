@@ -1,0 +1,6 @@
+{
+  "name": "Sesli Makale Asistanı",
+  "description": "Makaleleri sesli okuyan, 'Dur, not alalım!' komutu ile durup konuşulan notları sayfa ve satır numarasıyla kaydeden akıllı okuma asistanı.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
