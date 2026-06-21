@@ -13,3 +13,6 @@ _zip_archive/
 
 # Waitlist signups (server-side, not tracked)
 data/
+
+# Raw Stitch design export (reference only; distilled into docs/DESIGN.md)
+stitch_eidosus_ui_design_system/

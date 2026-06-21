@@ -490,7 +490,7 @@ export default function App() {
     lang === 'tr' ? 'Türkçe' : lang === 'en' ? 'English' : lang.toUpperCase();
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
+    <div className="flex min-h-screen flex-col bg-canvas dark:bg-slate-950">
       <Navbar
         voices={voices}
         settings={settings}
