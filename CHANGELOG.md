@@ -4,6 +4,15 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Phase 5 — Reader & library polish (2026-06-21)
+- **In-document search** in the reader (`features/reader/services/documentSearch.ts`): a search box with match count and prev/next navigation that jumps to and reveals each matching segment (Turkish-aware, case-insensitive).
+- **Reading progress** indicator: a live progress bar (% of segments read) in the reader toolbar, with ARIA `progressbar` semantics.
+- **Library filters & sorting** (`features/library/services/libraryQueries.ts`): search by title/author/filename, filter by language, and sort by most-recent / title / note count / reading progress, with an empty-results state.
+- **Responsive reader/notes layout**: on phones a tab switcher toggles between the Reader and Notes panels (showing the note count); desktop keeps both side by side. After saving a note, mobile auto-switches to the Notes tab.
+- **Clearer dictation state**: the note editor now detects Web Speech recognition support (`features/speech/services/capabilities.ts`) and, when unavailable, replaces the mic controls with a clear "type your note" message instead of an inert button.
+- **Tests:** +13 (now 79 total) — library search/filter/sort/progress and in-document search + next-match wrap-around.
+- Verified: `npm run lint` (pass), `npm test` (79 pass), `npm run build` (pass).
+
 ### Phase 6 — Secondary features cleanup & trust fixes (2026-06-21)
 - **Removed the fake "premium/AI" virtual voices.** Deleted the invented `virtual:tr:tolga/cem/dilara/yelda` entries and the `isVirtual`/`virtualPitch`/`virtualRateMulti` machinery. The voice list now contains only the real voices the browser/OS exposes.
 - **Centralized voice ranking** into `features/speech/services/voiceRanking.ts` (one honest, rule-based scorer used by both the speech hook and the Navbar — no more duplicated logic). Removed the dishonest scoring boosts (the +300 for invented persona names and the +150 gender boost); kept legitimate quality/cloud/provider hints.

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, X, Quote, Sparkles, Save, Wand2, Loader2 } from 'lucide-react';
+import { Mic, MicOff, X, Quote, Sparkles, Save, Wand2, Loader2, Keyboard } from 'lucide-react';
 import type { NoteOrigin } from '../../../types/domain';
 import { parseTagInput } from '../services/noteFactory';
+import { isSpeechRecognitionSupported } from '../../speech/services/capabilities';
 
 const DICTATION_LANGS: { code: string; label: string }[] = [
   { code: 'tr', label: 'TR' },
@@ -80,6 +81,7 @@ export default function NoteEditorModal({
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanWarning, setCleanWarning] = useState<string | null>(null);
   const usedMicRef = useRef(false);
+  const recognitionSupported = isSpeechRecognitionSupported();
 
   // Reset everything when the editor opens.
   useEffect(() => {
@@ -183,40 +185,51 @@ export default function NoteEditorModal({
             </p>
           </div>
 
-          {/* Dictation controls */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              onClick={isSpeechListening ? onStopSpeech : onStartSpeech}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-                isSpeechListening
-                  ? 'bg-red-600 text-white hover:bg-red-700'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
-              }`}
-              aria-pressed={isSpeechListening}
-            >
-              {isSpeechListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              {isSpeechListening ? 'Dinleniyor — Durdur' : 'Sesle Yazdır'}
-            </button>
-            <div className="flex items-center gap-1">
-              {DICTATION_LANGS.map((l) => (
+          {/* Dictation controls (or a keyboard-only note when STT is unavailable) */}
+          {recognitionSupported ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
-                  key={l.code}
-                  onClick={() => onChangeDictationLanguage(l.code)}
-                  className={`rounded-md px-2 py-1 text-[10px] font-bold transition ${
-                    dictationLanguage === l.code
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                  onClick={isSpeechListening ? onStopSpeech : onStartSpeech}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                    isSpeechListening
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
                   }`}
+                  aria-pressed={isSpeechListening}
                 >
-                  {l.label}
+                  {isSpeechListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {isSpeechListening ? 'Dinleniyor — Durdur' : 'Sesle Yazdır'}
                 </button>
-              ))}
+                <div className="flex items-center gap-1">
+                  {DICTATION_LANGS.map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => onChangeDictationLanguage(l.code)}
+                      className={`rounded-md px-2 py-1 text-[10px] font-bold transition ${
+                        dictationLanguage === l.code
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                Ses tanıma davranışı tarayıcınıza ve cihazınıza bağlıdır; bazı tarayıcılar konuşmayı
+                çevrim içi hizmetlerle işleyebilir.
+              </p>
+            </>
+          ) : (
+            <div className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
+              <Keyboard className="mt-0.5 h-4 w-4 flex-none text-slate-400" />
+              <span>
+                Tarayıcınız ses tanımayı desteklemiyor. Notunuzu aşağıya klavyeyle yazabilirsiniz.
+              </span>
             </div>
-          </div>
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            Ses tanıma davranışı tarayıcınıza ve cihazınıza bağlıdır; bazı tarayıcılar konuşmayı
-            çevrim içi hizmetlerle işleyebilir.
-          </p>
+          )}
 
           {/* Raw transcript */}
           <div>

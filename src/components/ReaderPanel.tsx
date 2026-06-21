@@ -2,9 +2,10 @@ import { useState, useMemo } from 'react';
 import {
   Play, Pause, Square, ChevronLeft, ChevronRight,
   HelpCircle, Sparkles, BookOpen, AlertTriangle,
-  Save, LogOut, Check, Activity, RefreshCw, Quote
+  Save, LogOut, Check, Activity, RefreshCw, Quote, Search, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { Article, ParsedLine } from '../types';
+import { searchLines } from '../features/reader/services/documentSearch';
 
 interface ReaderPanelProps {
   article: Article;
@@ -82,6 +83,27 @@ export default function ReaderPanel({
   const [showOnlyActiveSnippet, setShowOnlyActiveSnippet] = useState<boolean>(true);
   // Exact text the user has selected within the reading viewport (for source-linked notes).
   const [selectedText, setSelectedText] = useState<string>('');
+  // In-document search state.
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [matchCursor, setMatchCursor] = useState<number>(0);
+
+  const searchMatches = useMemo(
+    () => searchLines(article.lines, searchQuery),
+    [article.lines, searchQuery],
+  );
+
+  const totalSegments = article.lines.length;
+  const readingProgress =
+    totalSegments > 0 ? Math.round(((currentLineIdx + 1) / totalSegments) * 100) : 0;
+
+  const gotoMatch = (cursor: number) => {
+    if (searchMatches.length === 0) return;
+    const wrapped = (cursor + searchMatches.length) % searchMatches.length;
+    setMatchCursor(wrapped);
+    const match = searchMatches[wrapped];
+    setCurrentPageFilter(match.pageNumber);
+    onSentenceClick(match.globalIndex);
+  };
 
   // Capture the current selection when the user finishes selecting text in the reader.
   const captureSelection = () => {
@@ -446,6 +468,68 @@ export default function ReaderPanel({
             S. {p.pageNumber}
           </button>
         ))}
+      </div>
+
+      {/* In-document search + reading progress toolbar */}
+      <div className="border-b border-slate-100 bg-white px-4 py-2 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setMatchCursor(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchMatches.length > 0) gotoMatch(matchCursor);
+              }}
+              placeholder="Belge içinde ara..."
+              className="w-full rounded-lg border border-slate-200 bg-slate-50/40 py-1.5 pl-8 pr-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              id="document-search-input"
+            />
+          </div>
+          {searchQuery && (
+            <div className="flex flex-none items-center gap-1">
+              <span className="text-[10px] font-mono text-slate-400">
+                {searchMatches.length > 0 ? `${matchCursor + 1}/${searchMatches.length}` : '0/0'}
+              </span>
+              <button
+                onClick={() => gotoMatch(matchCursor - 1)}
+                disabled={searchMatches.length === 0}
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800"
+                title="Önceki eşleşme"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => gotoMatch(matchCursor + 1)}
+                disabled={searchMatches.length === 0}
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800"
+                title="Sonraki eşleşme"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Reading progress */}
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[10px] font-mono text-slate-400 flex-none">
+            Okuma: %{readingProgress}
+          </span>
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div
+              className="h-full bg-indigo-500 transition-all duration-300"
+              style={{ width: `${readingProgress}%` }}
+              role="progressbar"
+              aria-valuenow={readingProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Main Page Panel Document viewport */}

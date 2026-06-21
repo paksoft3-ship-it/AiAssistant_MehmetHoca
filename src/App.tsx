@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent, DragEvent, type ReactNode } from 'react';
 import {
   FileText, Upload, Mic, Trash2, ArrowRight, Activity,
-  Sparkles, BookOpen, AlertCircle, Info, ShieldCheck
+  Sparkles, BookOpen, AlertCircle, Info, ShieldCheck, Search, NotebookPen
 } from 'lucide-react';
 
 import { Article } from './types';
@@ -15,6 +15,13 @@ import { useResearchNotes } from './features/notes/hooks/useResearchNotes';
 import { buildSourceAnchor } from './features/notes/services/sourceAnchor';
 import { requestCleanNote } from './features/notes/services/aiNoteCleaning';
 import { translateText, translateBatch } from './features/translation/services/translationService';
+import {
+  searchLibrary,
+  filterByLanguage,
+  sortLibrary,
+  listLanguages,
+  type LibrarySortKey,
+} from './features/library/services/libraryQueries';
 import { resetAllData, PREF_KEYS } from './db/reset';
 import { PRODUCT } from './config/product';
 import { featureFlags } from './config/featureFlags';
@@ -99,6 +106,12 @@ export default function App() {
   const [translationProgress, setTranslationProgress] = useState<string | null>(null);
   const [isReadingOriginal, setIsReadingOriginal] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  // Library controls (dashboard).
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [librarySort, setLibrarySort] = useState<LibrarySortKey>('recent');
+  const [libraryLang, setLibraryLang] = useState('');
+  // Mobile panel switch (reader vs notes) — both show side-by-side on desktop.
+  const [mobileTab, setMobileTab] = useState<'reader' | 'notes'>('reader');
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Holds the exact text the user selected when triggering a note (null = use active line).
   const pendingSelectionRef = useRef<string | null>(null);
@@ -407,6 +420,7 @@ export default function App() {
     });
     pendingSelectionRef.current = null;
     cancelRecording();
+    setMobileTab('notes');
   };
 
   // AI note cleaning (Phase 3). Gated by feature flags; the editor hides the
@@ -461,6 +475,17 @@ export default function App() {
     speakText(`Not ${note.ordinal}, sayfa ${note.sourceAnchor.pageNumber}: ${note.finalNote}`);
   };
 
+  // --- LIBRARY FILTER / SORT (dashboard) ---
+  const libraryLanguages = useMemo(() => listLanguages(libraryEntries), [libraryEntries]);
+  const visibleLibrary = useMemo(() => {
+    const byLang = filterByLanguage(libraryEntries, libraryLang);
+    const searched = searchLibrary(byLang, librarySearch);
+    return sortLibrary(searched, librarySort);
+  }, [libraryEntries, libraryLang, librarySearch, librarySort]);
+
+  const languageLabel = (lang: string) =>
+    lang === 'tr' ? 'Türkçe' : lang === 'en' ? 'English' : lang.toUpperCase();
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
       <Navbar
@@ -477,8 +502,33 @@ export default function App() {
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {activeArticle ? (
+          <>
+          {/* Mobile panel switcher (desktop shows both panels side by side) */}
+          <div className="mb-4 flex gap-2 lg:hidden">
+            <button
+              onClick={() => setMobileTab('reader')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+                mobileTab === 'reader'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+              }`}
+            >
+              <BookOpen className="h-4 w-4" /> Okuma
+            </button>
+            <button
+              onClick={() => setMobileTab('notes')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+                mobileTab === 'notes'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+              }`}
+            >
+              <NotebookPen className="h-4 w-4" /> Notlar ({notes.length})
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 h-[calc(100vh-12rem)] min-h-[550px]">
-            <div className="lg:col-span-7 xl:col-span-8 h-full">
+            <div className={`lg:col-span-7 xl:col-span-8 h-full ${mobileTab === 'reader' ? 'block' : 'hidden'} lg:block`}>
               <ReaderPanel
                 article={displayArticle || activeArticle}
                 isPlaying={isPlaying}
@@ -510,7 +560,7 @@ export default function App() {
               />
             </div>
 
-            <div className="lg:col-span-5 xl:col-span-4 h-full">
+            <div className={`lg:col-span-5 xl:col-span-4 h-full ${mobileTab === 'notes' ? 'block' : 'hidden'} lg:block`}>
               <ResearchNotesPanel
                 notes={notes}
                 documentTitle={activeArticle.title}
@@ -522,6 +572,7 @@ export default function App() {
               />
             </div>
           </div>
+          </>
         ) : (
           <div className="mx-auto max-w-4xl space-y-12">
             {/* Landing Hero */}
@@ -631,20 +682,63 @@ export default function App() {
             {/* Library */}
             {libraryEntries.length > 0 && (
               <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
-                  <div>
-                    <h3 className="font-sans font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-600" />
-                      Belge Kütüphaneniz
-                    </h3>
-                    <p className="text-2xs font-mono text-slate-500 dark:text-slate-400">
-                      Yerelde (tarayıcınızda) kayıtlı {libraryEntries.length} belge
-                    </p>
+                <div className="pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-sans font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                        <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-600" />
+                        Belge Kütüphaneniz
+                      </h3>
+                      <p className="text-2xs font-mono text-slate-500 dark:text-slate-400">
+                        Yerelde (tarayıcınızda) kayıtlı {libraryEntries.length} belge
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Search / filter / sort controls */}
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={librarySearch}
+                        onChange={(e) => setLibrarySearch(e.target.value)}
+                        placeholder="Belgelerde ara..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/40 py-1.5 pl-8 pr-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                      />
+                    </div>
+                    {libraryLanguages.length > 1 && (
+                      <select
+                        value={libraryLang}
+                        onChange={(e) => setLibraryLang(e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                        title="Dile göre süz"
+                      >
+                        <option value="">Tüm diller</option>
+                        {libraryLanguages.map((l) => (
+                          <option key={l} value={l}>{languageLabel(l)}</option>
+                        ))}
+                      </select>
+                    )}
+                    <select
+                      value={librarySort}
+                      onChange={(e) => setLibrarySort(e.target.value as LibrarySortKey)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                      title="Sırala"
+                    >
+                      <option value="recent">Son açılan</option>
+                      <option value="title">Başlık</option>
+                      <option value="notes">Not sayısı</option>
+                      <option value="progress">İlerleme</option>
+                    </select>
                   </div>
                 </div>
 
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {libraryEntries.map(({ document: doc, noteCount }, idx) => (
+                  {visibleLibrary.length === 0 && (
+                    <p className="py-6 text-center text-xs text-slate-400">Eşleşen belge bulunamadı.</p>
+                  )}
+                  {visibleLibrary.map(({ document: doc, noteCount }, idx) => (
                     <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 first:pt-0 last:pb-0 gap-3 group text-left">
                       <div className="flex items-start space-x-3 text-left">
                         <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-indigo-50 font-mono text-xs font-black text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">

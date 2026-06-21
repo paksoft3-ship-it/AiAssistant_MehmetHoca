@@ -43,8 +43,11 @@ _Updated at the end of every phase. Source of truth for sequencing._
 - ✅ Options: include raw/excerpts/tags, order by source/created, selected-notes-only.
 - ✅ Sanitized filenames; `ExportRecord` persisted via `exportRepository`; 9 export tests.
 
-## Phase 5 — Reader & library polish ⏳
-- Reader 3-pane desktop / tabbed mobile; search + progress; library filters/sorting; reliable TTS + dictation states.
+## Phase 5 — Reader & library polish ✅
+- ✅ In-document search (match count + prev/next jump) and reading-progress bar.
+- ✅ Library search / language filter / sort (recent, title, notes, progress).
+- ✅ Responsive: mobile reader/notes tab switcher; desktop side-by-side.
+- ✅ Dictation capability detection → clear keyboard-only fallback message.
 
 ## Phase 6 — Secondary features cleanup ✅
 - ✅ Removed fake virtual "premium/AI" voices + virtual-voice machinery.
