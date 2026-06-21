@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, X, Quote, Sparkles, Save, Wand2, Loader2, Keyboard } from 'lucide-react';
 import type { NoteOrigin } from '../../../types/domain';
 import { parseTagInput } from '../services/noteFactory';
+import { Icon } from '../../../components/ui/Icon';
 import { isSpeechRecognitionSupported } from '../../speech/services/capabilities';
 
 const DICTATION_LANGS: { code: string; label: string }[] = [
@@ -30,12 +30,9 @@ export interface CleanNoteResponse {
 export interface NoteEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** The exact source passage the note is linked to. */
   sourceExcerpt: string;
   pageNumber: number;
-  /** True when the excerpt came from a user text selection (vs the active line). */
   isSelectionBased: boolean;
-  // Dictation bindings (from useSpeechEngine).
   isSpeechListening: boolean;
   interimTranscript: string;
   finalTranscript: string;
@@ -45,18 +42,9 @@ export interface NoteEditorModalProps {
   onChangeDictationLanguage: (code: string) => void;
   onClearTranscript: () => void;
   onSave: (data: NoteEditorSaveData) => void;
-  /**
-   * Optional AI cleaning handler (Phase 3). When omitted, the AI cleaning
-   * affordance is hidden so the editor works fully without AI.
-   */
   onRequestClean?: (raw: string, excerpt: string) => Promise<CleanNoteResponse>;
 }
 
-/**
- * Source-linked note editor (CLAUDE.md §11.1). Shows the exact source excerpt,
- * preserves the raw transcript separately from the final note, supports tags,
- * and always allows saving without AI.
- */
 export default function NoteEditorModal({
   isOpen,
   onClose,
@@ -83,7 +71,6 @@ export default function NoteEditorModal({
   const usedMicRef = useRef(false);
   const recognitionSupported = isSpeechRecognitionSupported();
 
-  // Reset everything when the editor opens.
   useEffect(() => {
     if (isOpen) {
       setRawText('');
@@ -96,7 +83,6 @@ export default function NoteEditorModal({
     }
   }, [isOpen]);
 
-  // Reflect the live dictation transcript into the raw-transcript field.
   useEffect(() => {
     if (!isOpen) return;
     const combined = `${finalTranscript} ${interimTranscript}`.trim();
@@ -108,8 +94,6 @@ export default function NoteEditorModal({
 
   if (!isOpen) return null;
 
-  const handleCopyRawToFinal = () => setFinalText(rawText);
-
   const handleClean = async () => {
     if (!onRequestClean || !rawText.trim()) return;
     setIsCleaning(true);
@@ -118,16 +102,10 @@ export default function NoteEditorModal({
       const result = await onRequestClean(rawText.trim(), sourceExcerpt);
       setCleanedNote(result.cleanedNote);
       setFinalText(result.cleanedNote);
-      if (result.suggestedTags && result.suggestedTags.length > 0) {
-        setTagsInput((prev) => (prev ? prev : result.suggestedTags!.join(', ')));
-      }
-      if (result.warnings && result.warnings.length > 0) {
-        setCleanWarning(result.warnings.join(' '));
-      }
+      if (result.suggestedTags?.length) setTagsInput((p) => (p ? p : result.suggestedTags!.join(', ')));
+      if (result.warnings?.length) setCleanWarning(result.warnings.join(' '));
     } catch (err) {
-      setCleanWarning(
-        'Akademik düzenleme şu anda yapılamadı. Notunuzu olduğu gibi kaydedebilirsiniz.',
-      );
+      setCleanWarning('Akademik düzenleme şu anda yapılamadı. Notunuzu olduğu gibi kaydedebilirsiniz.');
       console.error('[EidosUs] Note cleaning failed:', err);
     } finally {
       setIsCleaning(false);
@@ -148,68 +126,70 @@ export default function NoteEditorModal({
   };
 
   const canSave = (finalText.trim() || rawText.trim()).length > 0;
+  const labelCls = 'font-small text-small font-medium text-text dark:text-slate-300';
+  const textareaCls =
+    'w-full resize-none rounded-xl border border-border bg-surface p-md font-body-ui text-body-ui text-text transition-shadow focus:border-focus-ring focus:ring-2 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-100';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-on-surface/20 p-md backdrop-blur-md sm:p-lg">
+      <div className="relative my-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-surface px-lg py-md dark:bg-slate-900">
           <div>
-            <h3 className="flex items-center gap-2 font-sans text-base font-bold text-slate-900 dark:text-white">
-              <Sparkles className="h-4 w-4 text-indigo-600" />
-              Kaynağa Bağlı Not
-            </h3>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Sayfa {pageNumber} · {isSelectionBased ? 'Seçili metne bağlı' : 'Aktif cümleye bağlı'}
+            <h2 className="font-h3-card-title text-h3-card-title text-on-surface dark:text-white">Kaynağa Bağlı Not</h2>
+            <p className="mt-xs flex items-center gap-xs font-small text-small text-text-muted">
+              Sayfa {pageNumber}
+              <span className="inline-block h-1 w-1 rounded-full bg-outline-variant" />
+              {isSelectionBased ? 'Seçili metne bağlı' : 'Aktif cümleye bağlı'}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
-            title="Kapat"
-            aria-label="Kapat"
-          >
-            <X className="h-5 w-5" />
+          <button onClick={onClose} className="-mr-sm rounded-lg p-sm text-outline transition-colors hover:bg-surface-muted hover:text-text" aria-label="Kapat">
+            <Icon name="close" className="text-[20px]" />
           </button>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {/* Source excerpt card */}
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-900/40 dark:bg-indigo-950/20">
-            <div className="mb-1 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-              <Quote className="h-3.5 w-3.5" />
-              Kaynak Pasaj
+        {/* Body */}
+        <div className="flex max-h-[calc(100vh-160px)] flex-col gap-xl overflow-y-auto p-lg">
+          {/* Source excerpt */}
+          <div className="rounded-xl border border-primary-fixed-dim bg-primary-soft p-md">
+            <div className="mb-sm flex items-center gap-sm">
+              <Icon name="format_quote" className="text-[16px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }} />
+              <span className="font-label-mono text-label-mono uppercase tracking-wider text-primary">Kaynak Pasaj</span>
             </div>
-            <p className="text-xs italic leading-relaxed text-slate-700 dark:text-slate-300">
+            <p className="ml-sm border-l-2 border-primary/30 pl-sm font-body-reading text-body-reading italic text-text">
               &ldquo;{sourceExcerpt || 'Pasaj bulunamadı'}&rdquo;
             </p>
           </div>
 
-          {/* Dictation controls (or a keyboard-only note when STT is unavailable) */}
+          {/* Dictation */}
           {recognitionSupported ? (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-sm">
+              <div className="flex flex-wrap items-center justify-between gap-md">
                 <button
                   onClick={isSpeechListening ? onStopSpeech : onStartSpeech}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                  className={`flex items-center gap-xs rounded-lg px-md py-sm font-small text-small transition-colors ${
                     isSpeechListening
-                      ? 'bg-red-600 text-white hover:bg-red-700'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
+                      ? 'border border-danger/30 bg-danger-soft text-danger shadow-sm'
+                      : 'border border-border bg-surface text-text hover:bg-surface-muted'
                   }`}
-                  aria-pressed={isSpeechListening}
                 >
-                  {isSpeechListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {isSpeechListening ? (
+                    <span className="mr-xs h-2 w-2 animate-pulse rounded-full bg-danger" />
+                  ) : (
+                    <Icon name="mic" className="text-[18px]" />
+                  )}
                   {isSpeechListening ? 'Dinleniyor — Durdur' : 'Sesle Yazdır'}
                 </button>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-xs">
+                  <span className="mr-xs font-small text-small text-text-muted">Dil:</span>
                   {DICTATION_LANGS.map((l) => (
                     <button
                       key={l.code}
                       onClick={() => onChangeDictationLanguage(l.code)}
-                      className={`rounded-md px-2 py-1 text-[10px] font-bold transition ${
+                      className={`rounded-full px-2 py-1 font-small text-small transition-colors ${
                         dictationLanguage === l.code
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                          ? 'border border-primary-fixed-dim bg-primary-soft text-primary'
+                          : 'border border-transparent bg-surface-muted text-text-muted hover:border-border hover:text-text'
                       }`}
                     >
                       {l.label}
@@ -217,114 +197,92 @@ export default function NoteEditorModal({
                   ))}
                 </div>
               </div>
-              <p className="text-[11px] leading-relaxed text-slate-400">
-                Ses tanıma davranışı tarayıcınıza ve cihazınıza bağlıdır; bazı tarayıcılar konuşmayı
-                çevrim içi hizmetlerle işleyebilir.
+              <p className="mt-xs flex items-start gap-xs font-label-mono text-label-mono text-outline">
+                <Icon name="info" className="text-[14px]" />
+                Ses tanıma davranışı tarayıcınıza ve cihazınıza bağlıdır; bazı tarayıcılar konuşmayı çevrim içi hizmetlerle işleyebilir.
               </p>
-            </>
+            </div>
           ) : (
-            <div className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
-              <Keyboard className="mt-0.5 h-4 w-4 flex-none text-slate-400" />
-              <span>
-                Tarayıcınız ses tanımayı desteklemiyor. Notunuzu aşağıya klavyeyle yazabilirsiniz.
-              </span>
+            <div className="flex items-start gap-sm rounded-xl bg-surface-muted p-md font-small text-small text-text-muted">
+              <Icon name="keyboard" className="text-[18px]" />
+              Tarayıcınız ses tanımayı desteklemiyor. Notunuzu aşağıya klavyeyle yazabilirsiniz.
             </div>
           )}
 
           {/* Raw transcript */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-2xs font-bold uppercase tracking-wide text-slate-500">
-                Ham Döküm
-              </label>
-              <button
-                onClick={() => {
-                  setRawText('');
-                  onClearTranscript();
-                }}
-                className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
-              >
-                Temizle
-              </button>
+          <div className="flex flex-col gap-xs">
+            <div className="flex items-center justify-between">
+              <label className={labelCls}>Ham Döküm</label>
+              <button onClick={() => { setRawText(''); onClearTranscript(); }} className="font-small text-small text-text-muted transition-colors hover:text-primary">Temizle</button>
             </div>
             <textarea
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              placeholder="Konuşun veya buraya fikrinizi yazın. Ham döküm olduğu gibi saklanır."
-              className="min-h-[80px] w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              rows={3}
+              placeholder="Sesle yazdırılan veya elle girilen ham notlarınız burada görünür..."
+              className={textareaCls}
             />
           </div>
 
-          {/* AI cleaning (Phase 3) — only when a handler is supplied */}
+          {/* AI refinement */}
           {onRequestClean && (
-            <div className="flex items-center gap-2">
+            <div className="-my-sm flex flex-col items-center gap-xs">
               <button
                 onClick={handleClean}
                 disabled={isCleaning || !rawText.trim()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-violet-950/30 dark:text-violet-300"
+                className="group flex items-center gap-sm rounded-full border border-primary/40 bg-surface px-lg py-sm font-small text-small text-primary shadow-sm transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isCleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                <Icon name={isCleaning ? 'progress_activity' : 'auto_awesome'} className={`text-[18px] ${isCleaning ? 'animate-spin' : 'transition-transform group-hover:rotate-12'}`} />
                 Akademik Olarak Düzenle
               </button>
-              {cleanedNote && (
-                <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                  Düzenlenmiş öneri nihai nota eklendi
-                </span>
-              )}
+              {cleanWarning && <p className="text-center font-label-mono text-label-mono text-warning">{cleanWarning}</p>}
             </div>
           )}
-          {cleanWarning && <p className="text-[11px] text-amber-600">{cleanWarning}</p>}
 
-          {/* Final note */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-2xs font-bold uppercase tracking-wide text-slate-500">
+          {/* Refined note */}
+          <div className="flex flex-col gap-xs">
+            <div className="flex items-center justify-between">
+              <label className={`${labelCls} flex items-center gap-xs`}>
                 Düzenlenmiş Akademik Not
+                {cleanedNote && <Icon name="check_circle" className="text-[14px] text-success" />}
               </label>
-              <button
-                onClick={handleCopyRawToFinal}
-                className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-700"
-              >
-                Ham dökümü kopyala
+              <button onClick={() => setFinalText(rawText)} className="flex items-center gap-xs font-small text-small text-text-muted transition-colors hover:text-primary">
+                <Icon name="content_copy" className="text-[14px]" /> Ham dökümü kopyala
               </button>
             </div>
             <textarea
               value={finalText}
               onChange={(e) => setFinalText(e.target.value)}
+              rows={4}
               placeholder="Nihai notunuz. Boş bırakırsanız ham döküm kaydedilir."
-              className="min-h-[80px] w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className={`${textareaCls} leading-relaxed`}
             />
           </div>
 
           {/* Tags */}
-          <div>
-            <label className="mb-1 block text-2xs font-bold uppercase tracking-wide text-slate-500">
-              Etiketler (virgülle ayırın)
-            </label>
-            <input
-              type="text"
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="örn. yöntem, hipotez, literatür"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-            />
+          <div className="flex flex-col gap-xs">
+            <label className={labelCls}>Etiketler</label>
+            <div className="relative flex items-center">
+              <Icon name="sell" className="pointer-events-none absolute left-md text-[18px] text-text-muted" />
+              <input
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="Örn: yöntem, hipotez, literatür (virgülle ayırın)"
+                className="w-full rounded-xl border border-border bg-surface py-sm pl-[40px] pr-md font-small text-small text-text transition-shadow focus:border-focus-ring focus:ring-2 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">
-          <button
-            onClick={onClose}
-            className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            İptal
-          </button>
+        <div className="flex items-center justify-end gap-sm border-t border-border px-lg py-md">
+          <button onClick={onClose} className="rounded-btn px-4 py-2 font-small text-small font-medium text-text-muted transition-colors hover:bg-surface-muted">İptal</button>
           <button
             onClick={handleSave}
             disabled={!canSave}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
+            className="inline-flex items-center gap-1.5 rounded-btn bg-primary px-5 py-2 font-small text-small font-medium text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
           >
-            <Save className="h-4 w-4" />
+            <Icon name="save" className="text-[18px]" />
             Notu Kaydet
           </button>
         </div>
