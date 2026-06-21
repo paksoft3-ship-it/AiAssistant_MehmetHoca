@@ -584,7 +584,7 @@ export default function App() {
                 <Sparkles className="h-4 w-4" />
                 <span>{PRODUCT.name} — {PRODUCT.taglineTr}</span>
               </div>
-              <h2 className="font-sans font-extrabold text-3xl sm:text-4xl text-slate-950 tracking-tight dark:text-white leading-tight">
+              <h2 className="font-sans font-extrabold text-3xl sm:text-4xl text-ink tracking-tight dark:text-white leading-tight">
                 Makaleyi dinleyin, durun, düşüncenizi söyleyin <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-500">
                   kaynağa bağlı araştırma notuna

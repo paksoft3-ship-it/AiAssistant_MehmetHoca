@@ -11,6 +11,7 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-canvas: #fafaf9;
+  --color-ink: #1b2a4a; /* deep navy for headings */
 }
 
 /* Smoother type rendering for the academic reading experience. */

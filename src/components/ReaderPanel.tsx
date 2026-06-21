@@ -581,7 +581,7 @@ export default function ReaderPanel({
           </div>
 
           {/* Interactive lines list */}
-          <div className="space-y-4 text-slate-800 dark:text-slate-200 text-base leading-relaxed">
+          <div className="space-y-4 text-slate-800 dark:text-slate-200 text-[17px] leading-relaxed">
             {hasHiddenBefore && (
               <div 
                 onClick={() => setShowOnlyActiveSnippet(false)}

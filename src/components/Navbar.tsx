@@ -69,7 +69,7 @@ export default function Navbar({
             <Volume2 className="h-5.5 w-5.5" />
           </div>
           <div>
-            <h1 className="font-sans font-bold text-lg tracking-tight text-slate-900 dark:text-white">
+            <h1 className="font-sans font-bold text-lg tracking-tight text-ink dark:text-white">
               {PRODUCT.name}
             </h1>
             <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
