@@ -13,14 +13,15 @@ _Updated at the end of every phase. Source of truth for sequencing._
 - Write `CURRENT_STATE_AUDIT.md`, `ARCHITECTURE.md`, `IMPLEMENTATION_PLAN.md`, `KNOWN_LIMITATIONS.md`, `DATA_MODEL.md`, `PRIVACY_AND_DATA_FLOW.md`, `MANUAL_TEST_CHECKLIST.md`, `CHANGELOG.md`. ✅
 - Initialize git, baseline commit (no secrets/build output/large docs). ✅
 
-## Phase 1 — Architecture & persistence 🔄
-- Add `config/product.ts` (brand = EidosUs) and `config/featureFlags.ts`.
-- Add local parser deps `pdfjs-dist`, `mammoth`; configure PDF.js worker for Vite; remove CDN `<script>` tags from `index.html`.
-- Define the new domain types (`AcademicDocument`, `DocumentPage`, `TextSegment`, `SourceAnchor`, `ReadingAnchor`, `ResearchNote`, …) alongside legacy `types.ts` with adapters.
-- Add Dexie database (`db/database.ts`) + repositories (documents, notes, …).
-- Implement one-time non-destructive localStorage→IndexedDB migration + a Settings reset/recovery action.
-- Introduce Vitest + first unit tests (language normalization, voice ranking, migration, anchor serialization).
-- Begin incremental extraction of helpers from `App.tsx` / `useSpeechEngine.ts` (no behavior change).
+## Phase 1 — Architecture & persistence 🔄 (core done)
+- ✅ Add `config/product.ts` (brand = EidosUs) and `config/featureFlags.ts`.
+- ✅ Add local parser deps `pdfjs-dist`, `mammoth`; configure PDF.js worker for Vite (`?url`); remove CDN `<script>` tags from `index.html`.
+- ✅ Define the new domain types (`AcademicDocument`, `DocumentPage`, `TextSegment`, `SourceAnchor`, `ReadingAnchor`, `ResearchNote`, …) alongside legacy `types.ts`.
+- ✅ Add Dexie database (`db/database.ts`) + repositories (documents, notes).
+- ✅ Implement one-time non-destructive localStorage→IndexedDB migration; run on startup (`main.tsx`).
+- ✅ Introduce Vitest + first unit tests (parser pure fns, ids, migration mapping + IndexedDB roundtrip) — 27 passing.
+- ✅ Add `lib/ids.ts`; update `.env.example`; rename package to `eidosus`.
+- ⏳ Carry-over into Phase 2: Settings reset/recovery action (UI); wiring the reader/notes UI onto the repositories; further extraction of helpers from `App.tsx`/`useSpeechEngine.ts`. (Deferred deliberately so App is re-wired together with the new note workflow rather than half-migrated.)
 
 ## Phase 2 — Core source-linked note workflow ⏳
 - Exact text selection in the reader → `SourceAnchor` (selectedText + page + segmentId + context + offsets).

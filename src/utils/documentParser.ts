@@ -1,7 +1,17 @@
 import { Article, ParsedPage, ParsedLine } from '../types';
+import * as pdfjsLib from 'pdfjs-dist';
+// Vite resolves this to a hashed, locally-served worker asset (no CDN dependency).
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Namespace import works with mammoth's `export =`; Vite applies its browser-field
+// substitutions automatically when importing the package root.
+import * as mammoth from 'mammoth';
+
+// Configure the PDF.js worker once, from the bundled local asset.
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 /**
- * Dynamically extract text from documents (PDF, DOCX, TXT) in the browser
+ * Dynamically extract text from documents (PDF, DOCX, TXT) in the browser.
+ * PDF.js and Mammoth are bundled locally via npm (no runtime CDN scripts).
  */
 
 // Helper to calculate file size in readable format
@@ -515,16 +525,10 @@ export async function parseDocxFile(file: File): Promise<Partial<Article>> {
     reader.onload = async (event) => {
       try {
         const arrayBuffer = event.target?.result as ArrayBuffer;
-        
-        // Ensure Mammoth is loaded
-        const mammoth = (window as any).mammoth;
-        if (!mammoth) {
-          throw new Error('Word dosyası okuma kütüphanesi (Mammoth.js) yüklenemedi. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyiniz.');
-        }
 
         const result = await mammoth.extractRawText({ arrayBuffer });
         const text = result.value;
-        const warnings = result.warnings;
+        const warnings = result.messages;
         if (warnings && warnings.length > 0) {
           console.warn('Docx parsing warnings:', warnings);
         }
@@ -571,15 +575,6 @@ export async function parsePdfFile(file: File, onProgress?: (percent: number) =>
       try {
         const arrayBuffer = event.target?.result as ArrayBuffer;
 
-        // Ensure PDF.js is loaded
-        const pdfjsLib = (window as any).pdfjsLib;
-        if (!pdfjsLib) {
-          throw new Error('PDF okuma kütüphanesi (PDF.js) yüklenemedi. Lütfen internet bağlantınızı kontrol edip sayfayı yenileyiniz.');
-        }
-
-        // Configure the worker from a local CDN URL to avoid Cross-Origin blocks
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         
         // Progress hook up
@@ -601,7 +596,11 @@ export async function parsePdfFile(file: File, onProgress?: (percent: number) =>
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
           
-          const items = [...textContent.items].filter((item: any) => item && typeof item.str === 'string');
+          // pdfjs types items as (TextItem | TextMarkedContent)[]; we only keep
+          // positioned text items (those exposing `str`) and treat them loosely.
+          const items: any[] = [...textContent.items].filter(
+            (item: any) => item && typeof item.str === 'string',
+          );
           
           // Group items by their vertical coordinate (posY = transform[5])
           // We can use a tolerance of 5px to group items that are physically on the same text line.

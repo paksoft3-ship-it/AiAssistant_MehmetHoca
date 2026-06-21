@@ -63,7 +63,7 @@ Cross-cutting: Zod validation, body-size limit, rate limiting, request timeout, 
 ## 6. Migration status (updated each phase)
 
 - **Phase 0 (done):** audit + baseline; stack confirmed; docs created.
-- **Phase 1 (in progress):** local parser deps, Dexie persistence, repositories, localStorage→IndexedDB migration, config/product + featureFlags, incremental file splitting.
+- **Phase 1 (core done):** local parser deps (CDN removed), Dexie persistence + repositories, non-destructive localStorage→IndexedDB migration (runs on startup), domain model, `config/product` + `featureFlags`, `lib/ids`, Vitest harness (27 tests). Remaining: wire reader/notes UI onto repositories + Settings reset (folded into Phase 2).
 - Phases 2–8: see `IMPLEMENTATION_PLAN.md`.
 
 > Until a module is migrated, the legacy `App.tsx`/`useSpeechEngine.ts`/`documentParser.ts` paths remain in place and working. Nothing is deleted before its replacement is implemented and tested (CLAUDE.md §4.10).
