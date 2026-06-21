@@ -1,8 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent, DragEvent, type ReactNode } from 'react';
-import {
-  FileText, Upload, Mic, Trash2, ArrowRight, Activity,
-  Sparkles, BookOpen, AlertCircle, Info, ShieldCheck, Search, NotebookPen
-} from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent, DragEvent } from 'react';
+import { BookOpen, NotebookPen } from 'lucide-react';
 
 import { Article } from './types';
 import type { ResearchNote, SourceAnchor } from './types/domain';
@@ -33,7 +30,7 @@ import ResearchNotesPanel from './features/notes/components/ResearchNotesPanel';
 import NoteEditorModal, { type NoteEditorSaveData } from './features/notes/components/NoteEditorModal';
 import ExportDialog from './features/export/components/ExportDialog';
 import PrivacyNotice from './components/PrivacyNotice';
-import WaitlistForm from './features/waitlist/components/WaitlistForm';
+import LandingView from './components/LandingView';
 
 // High Craft Premium Turkish Sample Article Content for testing out of the box
 const SAMPLE_ARTICLE: Article = {
@@ -503,27 +500,26 @@ export default function App() {
         articleLanguage={activeLanguage}
       />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-        {activeArticle ? (
-          <>
+      {activeArticle ? (
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
           {/* Mobile panel switcher (desktop shows both panels side by side) */}
           <div className="mb-4 flex gap-2 lg:hidden">
             <button
               onClick={() => setMobileTab('reader')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-btn px-3 py-2 text-sm font-medium transition ${
                 mobileTab === 'reader'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface text-text-muted border border-border dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
               }`}
             >
               <BookOpen className="h-4 w-4" /> Okuma
             </button>
             <button
               onClick={() => setMobileTab('notes')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-btn px-3 py-2 text-sm font-medium transition ${
                 mobileTab === 'notes'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface text-text-muted border border-border dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
               }`}
             >
               <NotebookPen className="h-4 w-4" /> Notlar ({notes.length})
@@ -575,330 +571,30 @@ export default function App() {
               />
             </div>
           </div>
-          </>
+          </main>
         ) : (
-          <div className="mx-auto max-w-4xl space-y-12">
-            {/* Landing Hero */}
-            <div className="text-center space-y-4">
-              <div className="inline-flex items-center space-x-2 rounded-full bg-indigo-50 px-3.5 py-1.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-                <Sparkles className="h-4 w-4" />
-                <span>{PRODUCT.name} — {PRODUCT.taglineTr}</span>
-              </div>
-              <h2 className="font-sans font-extrabold text-3xl sm:text-4xl text-ink tracking-tight dark:text-white leading-tight">
-                Makaleyi dinleyin, durun, düşüncenizi söyleyin <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-500">
-                  kaynağa bağlı araştırma notuna
-                </span> dönüşsün.
-              </h2>
-              <p className="mx-auto max-w-2xl text-sm sm:text-base text-slate-500 dark:text-slate-400 font-sans leading-relaxed">
-                PDF, DOCX ve TXT akademik belgelerinizi yükleyin; dinlerken önemli bir pasajı seçin, fikrinizi sesli ya da yazılı kaydedin, ham düşünceyi koruyun ve düzenlenmiş notunuzu tam kaynak bağlamıyla saklayın.
-              </p>
-            </div>
-
-            {/* Dropzone */}
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              className={`rounded-3xl border-2 border-dashed p-10 text-center transition duration-200 bg-white shadow-xs ${
-                isParsing
-                  ? 'border-indigo-400 bg-indigo-50/5 dark:border-indigo-800'
-                  : 'border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60'
-              }`}
-            >
-              <div className="mx-auto flex max-w-xl flex-col items-center justify-center">
-                {isParsing ? (
-                  <div className="space-y-4 py-6">
-                    <div className="relative flex items-center justify-center">
-                      <div className="h-16 w-16 animate-spin rounded-full border-4 border-slate-100 border-t-indigo-600" />
-                      <FileText className="absolute h-6 w-6 text-indigo-600 animate-pulse" />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-sans font-bold text-slate-800 text-sm dark:text-white">Belge Analiz Ediliyor...</p>
-                      <p className="text-2xs text-slate-400 mt-1 font-mono">Sayfalar ve cümle yapıları ayrıştırılıyor</p>
-                    </div>
-                    <div className="w-48 mx-auto">
-                      <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                        <span>İŞLENİYOR</span>
-                        <span>%{parsingPercent}</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden dark:bg-slate-800">
-                        <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${parsingPercent}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-md shadow-indigo-100 dark:shadow-none dark:bg-indigo-950/40 dark:text-indigo-400">
-                      <Upload className="h-7 w-7" />
-                    </div>
-                    <h3 className="mt-5 font-sans font-bold text-slate-800 text-base dark:text-white">Akademik Belgeyi Buraya Bırakın veya Seçin</h3>
-                    <p className="mt-1.5 text-xs text-slate-400 leading-relaxed max-w-sm">
-                      Desteklenen formatlar: <strong className="text-slate-600 dark:text-slate-300">PDF, DOCX</strong> veya <strong className="text-slate-600 dark:text-slate-300">TXT</strong>.
-                    </p>
-                    <div className="mt-6">
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="inline-flex items-center space-x-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition duration-150 cursor-pointer dark:shadow-none"
-                        id="select-file-button"
-                      >
-                        <span>Cihazdan Dosya Seç</span>
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
-                      <input type="file" ref={fileInputRef} onChange={handleInputFileChange} accept=".pdf,.docx,.txt" className="hidden" />
-                    </div>
-                  </>
-                )}
-
-                {parsingError && (
-                  <div className="mt-6 flex items-start space-x-2 rounded-xl bg-red-50 p-4.5 text-left border border-red-100 dark:bg-red-950/20 dark:border-red-900/30">
-                    <AlertCircle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400 flex-none" />
-                    <div>
-                      <h4 className="text-xs font-bold text-red-800 dark:text-red-300">Ayrıştırma Hatası</h4>
-                      <p className="mt-0.5 text-2xs text-red-600 dark:text-red-400">{parsingError}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Sample loader */}
-            <div className="flex flex-col sm:flex-row items-center justify-between rounded-2xl border border-indigo-100/60 bg-indigo-50/15 p-5 dark:border-indigo-900/30 dark:bg-indigo-950/10">
-              <div className="flex items-center space-x-3 text-left">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100/80 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
-                  <FileText className="h-5.5 w-5.5" />
-                </div>
-                <div>
-                  <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200">Bilgisayarımda makale dökümanı yok</h4>
-                  <p className="text-[11px] text-slate-400">Eğitim ve yapay zeka üzerine hazır Türkçe akademik makaleyi anında yükleyin.</p>
-                </div>
-              </div>
-              <button
-                onClick={handleLoadSample}
-                className="mt-4 sm:mt-0 inline-flex items-center space-x-1 rounded-xl bg-white px-4 py-2 border border-indigo-200 text-indigo-700 text-2xs font-bold hover:bg-slate-50 transition cursor-pointer shadow-3xs dark:bg-indigo-950 dark:border-indigo-900 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
-                id="load-sample-btn"
-              >
-                <span>Örnek Makaleyle Dene</span>
-                <ArrowRight className="h-3 w-3" />
-              </button>
-            </div>
-
-            {/* Library */}
-            {libraryEntries.length > 0 && (
-              <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-                <div className="pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-sans font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                        <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-600" />
-                        Belge Kütüphaneniz
-                      </h3>
-                      <p className="text-2xs font-mono text-slate-500 dark:text-slate-400">
-                        Yerelde (tarayıcınızda) kayıtlı {libraryEntries.length} belge
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Search / filter / sort controls */}
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                      <input
-                        type="text"
-                        value={librarySearch}
-                        onChange={(e) => setLibrarySearch(e.target.value)}
-                        placeholder="Belgelerde ara..."
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50/40 py-1.5 pl-8 pr-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-                      />
-                    </div>
-                    {libraryLanguages.length > 1 && (
-                      <select
-                        value={libraryLang}
-                        onChange={(e) => setLibraryLang(e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
-                        title="Dile göre süz"
-                      >
-                        <option value="">Tüm diller</option>
-                        {libraryLanguages.map((l) => (
-                          <option key={l} value={l}>{languageLabel(l)}</option>
-                        ))}
-                      </select>
-                    )}
-                    <select
-                      value={librarySort}
-                      onChange={(e) => setLibrarySort(e.target.value as LibrarySortKey)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
-                      title="Sırala"
-                    >
-                      <option value="recent">Son açılan</option>
-                      <option value="title">Başlık</option>
-                      <option value="notes">Not sayısı</option>
-                      <option value="progress">İlerleme</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {visibleLibrary.length === 0 && (
-                    <p className="py-6 text-center text-xs text-slate-400">Eşleşen belge bulunamadı.</p>
-                  )}
-                  {visibleLibrary.map(({ document: doc, noteCount }, idx) => (
-                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 first:pt-0 last:pb-0 gap-3 group text-left">
-                      <div className="flex items-start space-x-3 text-left">
-                        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-indigo-50 font-mono text-xs font-black text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
-                          #{idx + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200 line-clamp-1 group-hover:text-indigo-600 transition-colors duration-200">
-                            {doc.title}
-                          </h4>
-                          <p className="text-[10px] text-slate-400 font-mono flex flex-wrap items-center gap-2 mt-0.5">
-                            <span className="uppercase">{doc.fileType} • {formatFileSize(doc.fileSizeBytes)}</span>
-                            <span>•</span>
-                            <span>DİL: {doc.language === 'tr' ? 'Türkçe' : doc.language === 'en' ? 'English' : doc.language.toUpperCase()}</span>
-                            {noteCount > 0 && (
-                              <>
-                                <span>•</span>
-                                <span className="text-indigo-600 font-extrabold dark:text-indigo-400">{noteCount} Not</span>
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-2 self-end sm:self-center">
-                        <button
-                          onClick={() => handleOpenFromLibrary(doc.id)}
-                          className="inline-flex items-center space-x-1.5 rounded-xl bg-indigo-50 px-3.5 py-2 text-2xs font-bold text-indigo-700 hover:bg-indigo-100 transition duration-150 cursor-pointer dark:bg-indigo-950 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
-                        >
-                          <BookOpen className="h-4 w-4" />
-                          <span>Okumaya Devam Et</span>
-                        </button>
-                        <button
-                          onClick={() => handleRemoveFromLibrary(doc.id)}
-                          className="p-2 rounded-xl border border-slate-100 text-slate-400 hover:text-red-600 hover:bg-red-50 transition duration-150 cursor-pointer dark:border-slate-800 dark:hover:bg-red-950/20"
-                          title="Belgeyi ve notlarıyla birlikte sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* How it works */}
-            <div className="space-y-4">
-              <h3 className="font-sans font-bold text-sm uppercase tracking-widest text-slate-400 text-center select-none">NASIL ÇALIŞIR?</h3>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <FeatureCard icon={<BookOpen className="h-4.5 w-4.5" />} tone="indigo" title="1. Dinle ve Aktif Oku" body="Belgeniz sayfalara ve cümlelere bölünür. Hızı ve sesi ayarlayıp dilediğiniz cümleden dinlemeye başlayın." />
-                <FeatureCard icon={<Mic className="h-4.5 w-4.5" />} tone="red" title="2. Pasaj Seç, Notunu Söyle" body="Bir metni seçip 'Bu Metne Not Ekle' deyin ya da dinlerken durup fikrinizi sesli/yazılı kaydedin. Ham döküm korunur." />
-                <FeatureCard icon={<Activity className="h-4.5 w-4.5" />} tone="emerald" title="3. Kaynağa Bağla" body="Her not, seçtiğiniz pasaja, sayfasına ve çevresel bağlamına bağlanır; tek tıkla kaynağa geri dönebilirsiniz." />
-                <FeatureCard icon={<Info className="h-4.5 w-4.5" />} tone="amber" title="4. Düzenle ve Sakla" body="Notu etiketleyin, nihai akademik biçimine getirin; her şey tarayıcınızda yerel olarak saklanır." />
-              </div>
-            </div>
-
-            {/* Who it's for */}
-            <div className="space-y-4">
-              <h3 className="text-center font-sans text-sm font-bold uppercase tracking-widest text-slate-400 select-none">
-                KİMLER İÇİN?
-              </h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {[
-                  'Yüksek lisans ve doktora öğrencileri',
-                  'Araştırmacılar ve akademisyenler',
-                  'Uzun akademik metinlerle çalışan herkes',
-                ].map((who) => (
-                  <div
-                    key={who}
-                    className="rounded-2xl border border-slate-200/60 bg-white p-4 text-center text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                  >
-                    {who}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Beta waitlist */}
-            <div className="rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-white p-6 dark:border-indigo-900/30 dark:from-indigo-950/20 dark:to-slate-900">
-              <div className="mx-auto max-w-xl text-center">
-                <h3 className="font-sans text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                  Ücretsiz Beta'ya katılın
-                </h3>
-                <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-                  Yeni özelliklerden ilk siz haberdar olun. Hemen denemek için yukarıdan bir belge
-                  yükleyebilir veya örnek makaleyle başlayabilirsiniz.
-                </p>
-                <div className="mx-auto mt-4 max-w-md text-left">
-                  <WaitlistForm />
-                </div>
-              </div>
-            </div>
-
-            {/* FAQ */}
-            <div className="space-y-3">
-              <h3 className="text-center font-sans text-sm font-bold uppercase tracking-widest text-slate-400 select-none">
-                SIKÇA SORULAN SORULAR
-              </h3>
-              <div className="space-y-2">
-                {[
-                  {
-                    q: 'Verilerim nerede saklanıyor?',
-                    a: 'Belgeleriniz ve notlarınız yalnızca tarayıcınızda (IndexedDB) saklanır; sunucuya yüklenmez. Tarayıcı verilerini temizlemek bunları silebilir, bu yüzden notlarınızı dışa aktarmanızı öneririz.',
-                  },
-                  {
-                    q: 'Yapay zeka özelliklerini kullanmak zorunda mıyım?',
-                    a: 'Hayır. Okuma, kaynağa bağlı not alma ve dışa aktarma yapay zeka olmadan tamamen çalışır. Not düzenleme, çeviri ve tartışma isteğe bağlı özelliklerdir.',
-                  },
-                  {
-                    q: 'Hangi dosyaları yükleyebilirim?',
-                    a: 'PDF, DOCX ve TXT desteklenir. Eski .doc biçimi desteklenmez; lütfen .docx veya .pdf olarak kaydedin. Taranmış (görüntü) PDF’lerde metin çıkarılamaz; OCR henüz yoktur.',
-                  },
-                  {
-                    q: 'Sesli okuma ve dikte her cihazda aynı mı?',
-                    a: 'Hayır. Sesler ve ses tanıma tarayıcı/işletim sistemine bağlıdır. Belirli bir “premium” sesi garanti etmeyiz ve ses tanımanın tamamen çevrimdışı olduğunu iddia etmeyiz.',
-                  },
-                ].map((item) => (
-                  <details
-                    key={item.q}
-                    className="group rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
-                  >
-                    <summary className="cursor-pointer list-none text-sm font-bold text-slate-800 dark:text-slate-200 marker:hidden">
-                      {item.q}
-                    </summary>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                      {item.a}
-                    </p>
-                  </details>
-                ))}
-              </div>
-            </div>
-
-            {/* Privacy / data control */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200/60 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start gap-3 text-left">
-                <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-emerald-600" />
-                <div>
-                  <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200">Verileriniz yerelde kalır</h4>
-                  <p className="text-[11px] leading-relaxed text-slate-400">
-                    Belgeleriniz ve notlarınız tarayıcınızda saklanır. Ayrıntılar için{' '}
-                    <button onClick={() => setIsPrivacyOpen(true)} className="font-bold text-indigo-600 underline dark:text-indigo-400">
-                      gizlilik bildirimini
-                    </button>{' '}
-                    okuyun.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleClearAllData}
-                className="flex-none rounded-xl border border-red-200 px-4 py-2 text-2xs font-bold text-red-600 transition hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/20"
-              >
-                Verilerimi Sil
-              </button>
-            </div>
-          </div>
+          <LandingView
+            isParsing={isParsing}
+            parsingPercent={parsingPercent}
+            parsingError={parsingError}
+            fileInputRef={fileInputRef}
+            onInputFileChange={handleInputFileChange}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onLoadSample={handleLoadSample}
+            libraryEntries={visibleLibrary}
+            totalLibraryCount={libraryEntries.length}
+            librarySearch={librarySearch}
+            onLibrarySearch={setLibrarySearch}
+            libraryLang={libraryLang}
+            onLibraryLang={setLibraryLang}
+            libraryLanguages={libraryLanguages}
+            librarySort={librarySort}
+            onLibrarySort={setLibrarySort}
+            onOpenDocument={handleOpenFromLibrary}
+            onRemoveDocument={handleRemoveFromLibrary}
+          />
         )}
-      </main>
 
       {/* Marketing footer — only on the landing/dashboard. The reader is a
           full-height workspace (no footer), matching the approved design. */}
@@ -958,32 +654,6 @@ export default function App() {
           notes={notes}
         />
       )}
-    </div>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  body,
-  tone,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  tone: 'indigo' | 'red' | 'emerald' | 'amber';
-}) {
-  const tones: Record<string, string> = {
-    indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400',
-    red: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400',
-    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
-    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
-  };
-  return (
-    <div className="rounded-2xl border border-slate-200/50 bg-white p-5 shadow-3xs hover:shadow-2xs transition duration-150 dark:border-slate-800 dark:bg-slate-900">
-      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}>{icon}</div>
-      <h4 className="mt-3 font-sans font-bold text-xs text-slate-800 dark:text-white">{title}</h4>
-      <p className="mt-1 text-2xs text-slate-400 leading-relaxed">{body}</p>
     </div>
   );
 }
