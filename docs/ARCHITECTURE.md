@@ -65,7 +65,8 @@ Cross-cutting: Zod validation, body-size limit, rate limiting, request timeout, 
 - **Phase 0 (done):** audit + baseline; stack confirmed; docs created.
 - **Phase 1 (done):** local parser deps (CDN removed), Dexie persistence + repositories, non-destructive localStorage→IndexedDB migration, domain model, `config/product` + `featureFlags`, `lib/ids`, Vitest harness.
 - **Phase 2 (done):** documents + notes wired onto repositories (`features/documents`, `features/notes` with `useLibrary`/`useResearchNotes`); exact text selection → `SourceAnchor`; `ResearchNote` editor (raw/final/tags) + research notes panel (jump-to-source, search/tag/sort); "Verilerimi Sil" reset.
-- **Phase 3 (done):** modular `server/` (config/geminiClient/prompts/schemas/middleware/routes); `POST /api/ai/clean-note` (Zod-validated, testable service core); rate limiting + body limit + timeouts + privacy-safe logging; editor wired via `lib/apiClient` + `aiNoteCleaning` with graceful fallback; raw transcript preserved; fabricated graph-trend fallback removed. 49 tests.
-- Phases 4–8: see `IMPLEMENTATION_PLAN.md`.
+- **Phase 3 (done):** modular `server/` (config/geminiClient/prompts/schemas/middleware/routes); `POST /api/ai/clean-note` (Zod-validated, testable service core); rate limiting + body limit + timeouts + privacy-safe logging; editor wired via `lib/apiClient` + `aiNoteCleaning` with graceful fallback; raw transcript preserved; fabricated graph-trend fallback removed.
+- **Phase 4 (done):** `features/export` — Markdown/DOCX/TXT renderers (pure), `exportService` (download + `ExportRecord`), `ExportDialog` (format + content/order/selection options), `exportRepository`. `docx` lazy-loaded into its own chunk. 58 tests.
+- Phases 5–8: see `IMPLEMENTATION_PLAN.md`.
 
 > Until a module is migrated, the legacy `App.tsx`/`useSpeechEngine.ts`/`documentParser.ts` paths remain in place and working. Nothing is deleted before its replacement is implemented and tested (CLAUDE.md §4.10).

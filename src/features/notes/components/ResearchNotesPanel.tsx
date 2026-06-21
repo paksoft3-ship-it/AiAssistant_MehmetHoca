@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Search, Edit2, Trash2, Check, X, Volume2, ArrowUpRight, Tag, Mic, Keyboard, MessageSquare, Wand2,
+  Search, Edit2, Trash2, Check, X, Volume2, ArrowUpRight, Tag, Mic, Keyboard, MessageSquare, Wand2, Download,
 } from 'lucide-react';
 import type { ResearchNote, SourceAnchor } from '../../../types/domain';
 import { searchNotes, sortNotes, filterByTag, collectTags, type NoteSortKey } from '../services/noteQueries';
@@ -13,6 +13,7 @@ export interface ResearchNotesPanelProps {
   onUpdateNote: (id: string, patch: { finalNote?: string; tags?: string[] }) => void;
   onDeleteNote: (id: string) => void;
   onPlayNote: (note: ResearchNote) => void;
+  onExport?: () => void;
 }
 
 const ORIGIN_META: Record<ResearchNote['origin'], { label: string; icon: typeof Mic }> = {
@@ -28,6 +29,7 @@ export default function ResearchNotesPanel({
   onUpdateNote,
   onDeleteNote,
   onPlayNote,
+  onExport,
 }: ResearchNotesPanelProps) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<NoteSortKey>('source');
@@ -67,16 +69,28 @@ export default function ResearchNotesPanel({
               {notes.length}
             </span>
           </h3>
-          <select
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as NoteSortKey)}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
-            title="Sıralama"
-          >
-            <option value="source">Kaynak sırası</option>
-            <option value="created">Eklenme</option>
-            <option value="updated">Güncelleme</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as NoteSortKey)}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+              title="Sıralama"
+            >
+              <option value="source">Kaynak sırası</option>
+              <option value="created">Eklenme</option>
+              <option value="updated">Güncelleme</option>
+            </select>
+            {onExport && notes.length > 0 && (
+              <button
+                onClick={onExport}
+                className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300"
+                title="Notları dışa aktar"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Dışa Aktar
+              </button>
+            )}
+          </div>
         </div>
         <p className="mt-0.5 truncate text-xs text-slate-400">{documentTitle}</p>
 

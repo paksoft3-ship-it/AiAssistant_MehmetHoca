@@ -38,8 +38,10 @@ _Updated at the end of every phase. Source of truth for sequencing._
 - ✅ Cleaned-note UI wired (`onRequestClean`); raw transcript never overwritten; graceful fallback; flag-gated.
 - ✅ Trust fix (early): removed fabricated graph-trend fallback (honest message instead).
 
-## Phase 4 — Export ⏳
-- Markdown + DOCX (`docx` npm) + improved TXT; export options; sanitized filenames; `ExportRecord`; export tests.
+## Phase 4 — Export ✅
+- ✅ Markdown + DOCX (`docx` npm, lazy-loaded) + TXT renderers; `ExportDialog` with options.
+- ✅ Options: include raw/excerpts/tags, order by source/created, selected-notes-only.
+- ✅ Sanitized filenames; `ExportRecord` persisted via `exportRepository`; 9 export tests.
 
 ## Phase 5 — Reader & library polish ⏳
 - Reader 3-pane desktop / tabbed mobile; search + progress; library filters/sorting; reliable TTS + dictation states.

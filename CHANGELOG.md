@@ -4,6 +4,16 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Phase 4 — Export (2026-06-21)
+- **Markdown, DOCX, and TXT export** of research notes (`features/export`). DOCX uses the `docx` npm package; Markdown/TXT are pure string renderers.
+- **Export structure** (CLAUDE.md §12.1): product-neutral title ("Araştırma Notları"), document metadata, export date, note count; per note: number, page, source excerpt, final note, optional raw transcript, tags, and created date. Notes ordered by source position by default.
+- **Export options**: include/exclude source excerpts, raw transcripts, and tags; order by source position or creation time; and export selected notes only (with an in-dialog note picker).
+- **Sanitized filenames** (`sanitizeFilename`) and a `Dışa Aktar` action in the notes panel opening an `ExportDialog`.
+- **`ExportRecord`** written to IndexedDB on each successful export (via a new `exportRepository`); recording failures never block the download.
+- **Performance**: the heavy `docx` dependency is **lazy-loaded** (dynamic `import()`) only when a DOCX export runs — split into its own chunk, dropping the main JS bundle from ~1.65 MB to ~1.31 MB.
+- **Tests:** +9 (now 58 total) — filename sanitization, export-model ordering/filtering, Markdown + TXT rendering with option toggles, and a DOCX generation test (packs to a non-empty buffer with the ZIP/`PK` magic header).
+- Verified: `npm run lint` (pass), `npm test` (58 pass), `npm run build` (pass; `docx` in a separate chunk).
+
 ### Phase 3 — AI note cleaning (2026-06-21)
 - **New endpoint `POST /api/ai/clean-note`** that turns a raw transcript into a structured academic note, returning **Zod-validated** `{ cleanedNote, suggestedTags, warnings }`. The prompt enforces the trust rules (preserve meaning, improve only grammar/clarity, never invent evidence/citations/certainty, warn instead of hallucinating).
 - **Modularized the AI server** into `server/`: `config.ts` (env-driven model/port/limits; no hardcoded model name), `services/geminiClient.ts` (shared client + retry **+ request timeout**), `services/prompts/cleanNote.ts`, `services/cleanNoteService.ts` (testable core, independent of Express/Gemini), `schemas/cleanNote.ts` (Zod), `middleware/rateLimit.ts`, and `routes/aiNotes.ts`.

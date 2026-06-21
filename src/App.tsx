@@ -23,6 +23,7 @@ import Navbar from './components/Navbar';
 import ReaderPanel from './components/ReaderPanel';
 import ResearchNotesPanel from './features/notes/components/ResearchNotesPanel';
 import NoteEditorModal, { type NoteEditorSaveData } from './features/notes/components/NoteEditorModal';
+import ExportDialog from './features/export/components/ExportDialog';
 
 // High Craft Premium Turkish Sample Article Content for testing out of the box
 const SAMPLE_ARTICLE: Article = {
@@ -96,6 +97,7 @@ export default function App() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<string | null>(null);
   const [isReadingOriginal, setIsReadingOriginal] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Holds the exact text the user selected when triggering a note (null = use active line).
   const pendingSelectionRef = useRef<string | null>(null);
@@ -538,6 +540,7 @@ export default function App() {
                 onUpdateNote={(id, patch) => void updateNote(id, patch)}
                 onDeleteNote={(id) => void deleteNote(id)}
                 onPlayNote={handlePlayNote}
+                onExport={() => setIsExportOpen(true)}
               />
             </div>
           </div>
@@ -763,6 +766,17 @@ export default function App() {
           }}
           onSave={handleSaveResearchNote}
           onRequestClean={aiCleaningEnabled ? handleRequestClean : undefined}
+        />
+      )}
+
+      {/* Export dialog */}
+      {activeArticle && (
+        <ExportDialog
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          documentId={activeArticle.id}
+          documentTitle={activeArticle.title}
+          notes={notes}
         />
       )}
     </div>
