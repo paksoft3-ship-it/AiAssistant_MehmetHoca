@@ -32,6 +32,8 @@ import ReaderPanel from './components/ReaderPanel';
 import ResearchNotesPanel from './features/notes/components/ResearchNotesPanel';
 import NoteEditorModal, { type NoteEditorSaveData } from './features/notes/components/NoteEditorModal';
 import ExportDialog from './features/export/components/ExportDialog';
+import PrivacyNotice from './components/PrivacyNotice';
+import WaitlistForm from './features/waitlist/components/WaitlistForm';
 
 // High Craft Premium Turkish Sample Article Content for testing out of the box
 const SAMPLE_ARTICLE: Article = {
@@ -106,6 +108,7 @@ export default function App() {
   const [translationProgress, setTranslationProgress] = useState<string | null>(null);
   const [isReadingOriginal, setIsReadingOriginal] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   // Library controls (dashboard).
   const [librarySearch, setLibrarySearch] = useState('');
   const [librarySort, setLibrarySort] = useState<LibrarySortKey>('recent');
@@ -795,6 +798,82 @@ export default function App() {
               </div>
             </div>
 
+            {/* Who it's for */}
+            <div className="space-y-4">
+              <h3 className="text-center font-sans text-sm font-bold uppercase tracking-widest text-slate-400 select-none">
+                KİMLER İÇİN?
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {[
+                  'Yüksek lisans ve doktora öğrencileri',
+                  'Araştırmacılar ve akademisyenler',
+                  'Uzun akademik metinlerle çalışan herkes',
+                ].map((who) => (
+                  <div
+                    key={who}
+                    className="rounded-2xl border border-slate-200/60 bg-white p-4 text-center text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                  >
+                    {who}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Beta waitlist */}
+            <div className="rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-white p-6 dark:border-indigo-900/30 dark:from-indigo-950/20 dark:to-slate-900">
+              <div className="mx-auto max-w-xl text-center">
+                <h3 className="font-sans text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  Ücretsiz Beta'ya katılın
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  Yeni özelliklerden ilk siz haberdar olun. Hemen denemek için yukarıdan bir belge
+                  yükleyebilir veya örnek makaleyle başlayabilirsiniz.
+                </p>
+                <div className="mx-auto mt-4 max-w-md text-left">
+                  <WaitlistForm />
+                </div>
+              </div>
+            </div>
+
+            {/* FAQ */}
+            <div className="space-y-3">
+              <h3 className="text-center font-sans text-sm font-bold uppercase tracking-widest text-slate-400 select-none">
+                SIKÇA SORULAN SORULAR
+              </h3>
+              <div className="space-y-2">
+                {[
+                  {
+                    q: 'Verilerim nerede saklanıyor?',
+                    a: 'Belgeleriniz ve notlarınız yalnızca tarayıcınızda (IndexedDB) saklanır; sunucuya yüklenmez. Tarayıcı verilerini temizlemek bunları silebilir, bu yüzden notlarınızı dışa aktarmanızı öneririz.',
+                  },
+                  {
+                    q: 'Yapay zeka özelliklerini kullanmak zorunda mıyım?',
+                    a: 'Hayır. Okuma, kaynağa bağlı not alma ve dışa aktarma yapay zeka olmadan tamamen çalışır. Not düzenleme, çeviri ve tartışma isteğe bağlı özelliklerdir.',
+                  },
+                  {
+                    q: 'Hangi dosyaları yükleyebilirim?',
+                    a: 'PDF, DOCX ve TXT desteklenir. Eski .doc biçimi desteklenmez; lütfen .docx veya .pdf olarak kaydedin. Taranmış (görüntü) PDF’lerde metin çıkarılamaz; OCR henüz yoktur.',
+                  },
+                  {
+                    q: 'Sesli okuma ve dikte her cihazda aynı mı?',
+                    a: 'Hayır. Sesler ve ses tanıma tarayıcı/işletim sistemine bağlıdır. Belirli bir “premium” sesi garanti etmeyiz ve ses tanımanın tamamen çevrimdışı olduğunu iddia etmeyiz.',
+                  },
+                ].map((item) => (
+                  <details
+                    key={item.q}
+                    className="group rounded-2xl border border-slate-200/60 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+                  >
+                    <summary className="cursor-pointer list-none text-sm font-bold text-slate-800 dark:text-slate-200 marker:hidden">
+                      {item.q}
+                    </summary>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      {item.a}
+                    </p>
+                  </details>
+                ))}
+              </div>
+            </div>
+
             {/* Privacy / data control */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200/60 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-start gap-3 text-left">
@@ -802,7 +881,11 @@ export default function App() {
                 <div>
                   <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200">Verileriniz yerelde kalır</h4>
                   <p className="text-[11px] leading-relaxed text-slate-400">
-                    Belgeleriniz ve notlarınız tarayıcınızda saklanır. Tarayıcı verilerini temizlemek bunları silebilir; önemli notları dışa aktarmanız önerilir.
+                    Belgeleriniz ve notlarınız tarayıcınızda saklanır. Ayrıntılar için{' '}
+                    <button onClick={() => setIsPrivacyOpen(true)} className="font-bold text-indigo-600 underline dark:text-indigo-400">
+                      gizlilik bildirimini
+                    </button>{' '}
+                    okuyun.
                   </p>
                 </div>
               </div>
@@ -816,6 +899,27 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* App footer (always visible) */}
+      <footer className="border-t border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-2xs text-slate-400 sm:flex-row">
+          <span>
+            {PRODUCT.name} — {PRODUCT.subtitle} · Beta
+          </span>
+          <button onClick={() => setIsPrivacyOpen(true)} className="font-semibold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+            Gizlilik ve Verileriniz
+          </button>
+        </div>
+      </footer>
+
+      <PrivacyNotice
+        isOpen={isPrivacyOpen}
+        onClose={() => setIsPrivacyOpen(false)}
+        onClearData={() => {
+          setIsPrivacyOpen(false);
+          void handleClearAllData();
+        }}
+      />
 
       {/* Source-linked note editor */}
       {activeArticle && noteAnchor && (

@@ -766,6 +766,16 @@ export async function parsePdfFile(file: File, onProgress?: (percent: number) =>
           }
         }
 
+        // Detect scanned / image-only PDFs: pages exist but almost no extractable
+        // text. We do not OCR in the MVP, so surface a clear, honest message
+        // instead of silently returning an empty document (CLAUDE.md §7.3, §18).
+        const extractedTextLength = rawPagesText.join('').replace(/\s/g, '').length;
+        if (totalPages > 0 && extractedTextLength < Math.max(20, totalPages * 5)) {
+          throw new Error(
+            'Bu PDF taranmış görüntülerden oluşuyor olabilir; metin çıkarılamadı. OCR henüz desteklenmiyor.',
+          );
+        }
+
         const { pages, lines } = compilePagesAndLines(rawPagesText, file.name);
 
         resolve({

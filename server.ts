@@ -6,6 +6,7 @@ import { config, aiAvailable } from "./server/config";
 import { generateContentWithRetry } from "./server/services/geminiClient";
 import { aiRateLimiter } from "./server/middleware/rateLimit";
 import { aiNotesRouter } from "./server/routes/aiNotes";
+import { waitlistRouter } from "./server/routes/waitlist";
 
 async function startServer() {
   const app = express();
@@ -21,12 +22,16 @@ async function startServer() {
     );
   }
 
-  // Rate-limit all AI endpoints.
+  // Rate-limit AI + waitlist endpoints.
   app.use("/api/ai", aiRateLimiter);
   app.use("/api/gemini", aiRateLimiter);
+  app.use("/api/waitlist", aiRateLimiter);
 
   // Phase 3 — academic note cleaning (modular route + Zod validation).
   app.use("/api/ai", aiNotesRouter);
+
+  // Phase 7 — beta waitlist (isolated storage).
+  app.use("/api/waitlist", waitlistRouter);
 
   // ── Secondary AI features (translation, discussion, figure) ──────────────
   // These remain here for now; they are modularized and hardened in Phase 6.

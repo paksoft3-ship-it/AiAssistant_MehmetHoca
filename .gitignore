@@ -10,3 +10,6 @@ coverage/
 # Delivery archives (kept locally, not tracked)
 _zip_archive/
 *.zip
+
+# Waitlist signups (server-side, not tracked)
+data/

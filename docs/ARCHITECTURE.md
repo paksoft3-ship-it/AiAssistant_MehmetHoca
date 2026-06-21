@@ -69,6 +69,7 @@ Cross-cutting: Zod validation, body-size limit, rate limiting, request timeout, 
 - **Phase 4 (done):** `features/export` — Markdown/DOCX/TXT renderers (pure), `exportService` (download + `ExportRecord`), `ExportDialog`, `exportRepository`. `docx` lazy-loaded.
 - **Phase 6 (done):** `features/speech` (honest centralized voice ranking + single speed-options source), `features/translation` + `features/discussion` services over `lib/apiClient`. Removed fake virtual voices, misleading voice UI, and the fabricated graph fallback; figure explanation gated behind a flag; deleted dead `SpeechRecordingModal`. 66 tests.
 - **Phase 5 (done):** `features/reader/documentSearch` + `features/library/libraryQueries` + `features/speech/capabilities`; reader in-document search & progress bar; library search/filter/sort; responsive mobile reader/notes tabs; dictation capability fallback. 79 tests.
-- Phases 7–8: see `IMPLEMENTATION_PLAN.md`.
+- **Phase 7 (done):** landing marketing sections + FAQ; `features/waitlist` (`WaitlistForm` + service) over isolated `POST /api/waitlist` (Zod, rate-limited, git-ignored JSONL); `PrivacyNotice` modal + footer; scanned-PDF detection; README rewritten. Manual browser checklist remains a human step.
+- **Phase 8 (deferred):** optional Supabase auth + cloud repository — not an MVP blocker. See `IMPLEMENTATION_PLAN.md`.
 
 > Until a module is migrated, the legacy `App.tsx`/`useSpeechEngine.ts`/`documentParser.ts` paths remain in place and working. Nothing is deleted before its replacement is implemented and tested (CLAUDE.md §4.10).

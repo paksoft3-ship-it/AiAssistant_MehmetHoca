@@ -58,8 +58,12 @@ _Updated at the end of every phase. Source of truth for sequencing._
 - ✅ Modularized translation + discussion services (via `lib/apiClient`); deleted dead `SpeechRecordingModal`.
 - Note: discussion UI is not re-wired into the reader yet (service + endpoint exist); a candidate for a later phase.
 
-## Phase 7 — Landing, privacy & beta readiness ⏳
-- Landing page (`/`), waitlist (local/isolated), in-app privacy notice, "Verilerimi Sil", consistent error states, manual browser test pass.
+## Phase 7 — Landing, privacy & beta readiness ✅
+- ✅ Landing marketing sections (hero, who-it's-for, beta waitlist, FAQ) on the dashboard — no fake social proof.
+- ✅ Waitlist: isolated, rate-limited `POST /api/waitlist` (Zod) → git-ignored JSONL; client local fallback.
+- ✅ In-app `PrivacyNotice` (footer + dashboard) + "Verilerimi Sil".
+- ✅ Scanned/image-only PDF detection with honest message; README rewritten.
+- ⏳ Manual browser test checklist execution remains a human step (`docs/MANUAL_TEST_CHECKLIST.md`).
 
 ## Phase 8 — Optional auth/cloud ⏳
 - Supabase auth behind a flag; cloud repository implementing the same interface. Not an MVP blocker.

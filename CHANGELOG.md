@@ -4,6 +4,14 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Phase 7 — Landing, privacy & beta readiness (2026-06-21)
+- **Marketing landing sections** on the dashboard (no-document view): clearer hero, "Who it's for", a **beta waitlist**, and an FAQ — with no fake testimonials, user counts, or university logos (CLAUDE.md §15).
+- **Beta waitlist**: `POST /api/waitlist` (Zod-validated, rate-limited) appends signups to an isolated, git-ignored `data/waitlist.jsonl` (privacy-safe logging — never logs the address). The client `WaitlistForm` falls back to a local queue if the server is unreachable, so it never blocks the app.
+- **In-app privacy notice** (`PrivacyNotice` modal) reachable from an always-visible footer and the dashboard, stating truthfully where data goes (local storage, possible online STT, AI sends only required text) with no "100% offline"/"guaranteed premium voice" claims, plus a "Verilerimi Sil" action.
+- **Scanned/image-only PDF detection** (CLAUDE.md §7.3/§18): the PDF parser now detects near-empty text extraction and surfaces a clear "this PDF may be scanned; OCR is not supported yet" message instead of returning an empty document.
+- **README rewritten** from the AI Studio template to a real EidosUs README (overview, setup, scripts, config, privacy, docs index).
+- Verified: `npm run lint` (pass), `npm test` (79 pass), `npm run build` (pass), and live waitlist endpoint smoke tests (200 + isolated file write; 400 on invalid email).
+
 ### Phase 5 — Reader & library polish (2026-06-21)
 - **In-document search** in the reader (`features/reader/services/documentSearch.ts`): a search box with match count and prev/next navigation that jumps to and reveals each matching segment (Turkish-aware, case-insensitive).
 - **Reading progress** indicator: a live progress bar (% of segments read) in the reader toolbar, with ARIA `progressbar` semantics.
