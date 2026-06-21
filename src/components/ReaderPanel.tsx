@@ -182,115 +182,19 @@ export default function ReaderPanel({
     <div className="relative mx-auto flex h-full w-full max-w-[820px] flex-col overflow-hidden border-x border-border bg-surface dark:bg-slate-900 dark:border-slate-800">
       
       {/* Article Header Details */}
-      <div className="border-b border-slate-100 bg-slate-50/50 p-4.5 dark:border-slate-800 dark:bg-slate-900/40">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-indigo-600 dark:text-indigo-400">
-              <BookOpen className="h-4 w-4" />
-              <span>{article.fileType.toUpperCase()} Belge</span>
-              <span>•</span>
-              <span>{article.fileSize}</span>
-              <span>•</span>
-              
-              {isSavedInLibrary ? (
-                <span className="inline-flex items-center space-x-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <Check className="h-3 w-3" />
-                  <span>KÜTÜPHANEDE KAYITLI (MAKALE #{article.serialNumber})</span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-                  <span>KÜTÜPHANEYE KAYDEDİLMEDİ</span>
-                </span>
-              )}
-            </div>
-            
-            <h2 className="font-sans font-bold text-base text-slate-900 line-clamp-2 dark:text-white" title={article.title}>
-              {article.title}
-            </h2>
-          </div>
-
-          {/* Persistent Action Buttons for Saving / Closing */}
-          <div className="flex items-center gap-2 self-start flex-wrap mt-2 md:mt-0">
-            {!isSavedInLibrary && onSaveToLibrary && (
-              <button
-                onClick={onSaveToLibrary}
-                className="inline-flex items-center space-x-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm transition duration-150 cursor-pointer"
-                title="Makaleyi tüm notlarıyla kütüphanenize kaydeder"
-                id="header-save-library-btn"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>Kütüphaneye Kaydet</span>
-              </button>
-            )}
-            
-            {onCloseArticle && (
-              <button
-                onClick={onCloseArticle}
-                className="inline-flex items-center space-x-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition duration-150 cursor-pointer dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                title={isSavedInLibrary ? "Makaleyi kapatır ve ana sayfaya döner" : "Kütüphaneye kaydetmeden kapatıp siler"}
-                id="header-close-btn"
-              >
-                <LogOut className="h-3.5 w-3.5 text-slate-400" />
-                <span>{isSavedInLibrary ? 'Kapat & Ana Sayfa' : 'Kaydetmeden Kapat'}</span>
-              </button>
-            )}
-          </div>
-
-        </div>
-        
-        {/* Language Info badge row only for visual clarity */}
-        <div className="mt-3 flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-dashed border-slate-100 dark:border-slate-800/60">
-          <div className="flex items-center gap-2">
-            {article.language && (
-              <div className="inline-flex items-center space-x-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600 uppercase tracking-wider dark:bg-slate-800 dark:text-slate-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                <span>DİL: {
-                  article.language === 'tr' ? 'Türkçe' :
-                  article.language === 'en' ? 'English' :
-                  article.language === 'de' ? 'Deutsch' :
-                  article.language === 'fr' ? 'Français' :
-                  article.language === 'es' ? 'Español' :
-                  article.language === 'it' ? 'Italiano' :
-                  article.language.toUpperCase()
-                }</span>
-              </div>
-            )}
-            
+      {(isTranslated || (article.language !== 'tr' && onTranslateToTurkish)) && (
+      <div className="border-b border-border bg-surface px-6 py-2.5">
+        {isTranslated && (
+          <div className="mb-2 flex items-center justify-end gap-2">
             {isReadingOriginal && (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-950/20 dark:text-amber-400 animate-fadeIn">
-                Orijinal Metin
-              </span>
+              <span className="mr-auto rounded-full bg-warning-soft px-2 py-0.5 font-label-mono text-label-mono text-warning">Orijinal Metin</span>
             )}
-          </div>
-
-          {isTranslated && (
-            <div className="flex rounded-xl bg-slate-100 p-0.5 dark:bg-slate-800 animate-fadeIn">
-              <button
-                type="button"
-                onClick={() => onToggleOriginal(false)}
-                className={`px-2.5 py-1 text-3xs font-extrabold rounded-lg transition-all cursor-pointer ${
-                  !isReadingOriginal
-                    ? 'bg-indigo-600 text-white shadow-xs animate-fadeIn'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                Türkçe Çeviri
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleOriginal(true)}
-                className={`px-2.5 py-1 text-3xs font-extrabold rounded-lg transition-all cursor-pointer ${
-                  isReadingOriginal
-                    ? 'bg-amber-600 text-white shadow-xs animate-fadeIn'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                Orijinal Metin
-              </button>
+            <div className="flex rounded-lg bg-surface-muted p-0.5">
+              <button onClick={() => onToggleOriginal(false)} className={`rounded-md px-2.5 py-1 font-small text-small font-medium transition ${!isReadingOriginal ? 'bg-surface text-primary shadow-sm' : 'text-text-muted'}`}>Türkçe</button>
+              <button onClick={() => onToggleOriginal(true)} className={`rounded-md px-2.5 py-1 font-small text-small font-medium transition ${isReadingOriginal ? 'bg-surface text-warning shadow-sm' : 'text-text-muted'}`}>Orijinal</button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {article.language !== 'tr' && onTranslateToTurkish && (
           <div className="w-full mt-3 block">
@@ -449,20 +353,21 @@ export default function ReaderPanel({
           </div>
         )}
       </div>
+      )}
 
-      {/* Pages switcher tabs / bookmarks */}
-      <div className="flex items-center space-x-1 border-b border-slate-100 px-4 py-2 bg-white dark:border-slate-800 dark:bg-slate-900 overflow-x-auto">
-        <span className="text-2xs font-bold text-slate-400 uppercase tracking-widest mr-2 select-none flex-none">
+      {/* Toolbar: page tabs + search + progress (merged, design style) */}
+      <div className="flex items-center space-x-1 border-b border-border bg-surface px-4 py-2 overflow-x-auto dark:bg-slate-900">
+        <span className="mr-2 flex-none select-none font-label-mono text-label-mono uppercase text-text-muted">
           Sayfalar:
         </span>
         {article.pages.map((p) => (
           <button
             key={p.pageNumber}
             onClick={() => setCurrentPageFilter(p.pageNumber)}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition duration-150 cursor-pointer ${
+            className={`rounded-md px-3 py-1 font-label-mono text-label-mono transition ${
               currentPageFilter === p.pageNumber
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-text-muted hover:bg-surface-muted'
             }`}
           >
             S. {p.pageNumber}
@@ -471,10 +376,10 @@ export default function ReaderPanel({
       </div>
 
       {/* In-document search + reading progress toolbar */}
-      <div className="border-b border-slate-100 bg-white px-4 py-2 dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-border bg-surface px-4 py-2 dark:bg-slate-900">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-text-muted" />
             <input
               type="text"
               value={searchQuery}
@@ -486,7 +391,7 @@ export default function ReaderPanel({
                 if (e.key === 'Enter' && searchMatches.length > 0) gotoMatch(matchCursor);
               }}
               placeholder="Belge içinde ara..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50/40 py-1.5 pl-8 pr-3 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              className="w-full rounded-lg border border-border bg-canvas py-1.5 pl-8 pr-3 font-body-ui text-body-ui text-text focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-200"
               id="document-search-input"
             />
           </div>
@@ -516,12 +421,12 @@ export default function ReaderPanel({
         </div>
         {/* Reading progress */}
         <div className="mt-2 flex items-center gap-2">
-          <span className="text-[10px] font-mono text-slate-400 flex-none">
+          <span className="flex-none font-label-mono text-label-mono text-text-muted">
             Okuma: %{readingProgress}
           </span>
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-container">
             <div
-              className="h-full bg-indigo-500 transition-all duration-300"
+              className="h-full bg-primary transition-all duration-300"
               style={{ width: `${readingProgress}%` }}
               role="progressbar"
               aria-valuenow={readingProgress}
@@ -534,7 +439,7 @@ export default function ReaderPanel({
 
       {/* Main Page Panel Document viewport */}
       <div
-        className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/20 relative"
+        className="relative flex-1 overflow-y-auto bg-surface px-10 py-8 pb-32 dark:bg-slate-900"
         id="document-reading-viewport"
         onMouseUp={captureSelection}
         onTouchEnd={captureSelection}
@@ -556,22 +461,22 @@ export default function ReaderPanel({
             </button>
           </div>
         )}
-        <div className="mx-auto max-w-2xl min-h-[400px] rounded-xl border border-slate-200/60 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          
+        <div className="mx-auto min-h-[400px] max-w-[65ch]">
+
           {/* Virtual Top margin metadata */}
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 text-2xs font-mono text-slate-400 dark:border-slate-800">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3 font-label-mono text-label-mono text-text-muted">
             <div className="flex items-center space-x-2">
               <span>Sayfa {currentPageFilter} / {totalPages}</span>
               <span>•</span>
               <span>Aktif Satır: {currentLine ? `S. ${currentLine.lineNumber}` : 'Yok'}</span>
             </div>
-            
+
             <button
                onClick={() => setShowOnlyActiveSnippet(!showOnlyActiveSnippet)}
-               className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition font-sans cursor-pointer ${
+               className={`inline-flex items-center space-x-1 rounded-lg px-2.5 py-1 font-small text-small font-medium transition ${
                  showOnlyActiveSnippet
-                   ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800'
-                   : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700'
+                   ? 'border border-primary/20 bg-primary-soft text-primary'
+                   : 'border border-border bg-surface-muted text-text-muted hover:bg-surface-container'
                }`}
                id="toggle-focused-view-btn"
                title="Okunacak tüm satırları göstermek yerine sadece aktif satırı, bir öncesini ve bir sonrasını gösterir."
@@ -602,18 +507,18 @@ export default function ReaderPanel({
                 <div key={line.globalIndex} className="space-y-2">
                   <div
                     onClick={() => onSentenceClick(line.globalIndex)}
-                    className={`relative rounded-xl cursor-pointer group select-text transition duration-150 ${
+                    className={`group relative cursor-pointer rounded-r-lg transition duration-150 ${
                       isGraph
                         ? isActive
-                          ? 'border-2 border-indigo-500 bg-indigo-50/70 p-4 shadow-sm text-indigo-950 font-sans font-extrabold text-base tracking-tight select-text dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-700'
-                          : 'border border-dashed border-slate-300 hover:bg-slate-50 hover:border-slate-400 p-4 text-slate-700 font-sans font-bold text-base tracking-tight select-text dark:border-slate-700 dark:hover:bg-slate-800/50 dark:text-slate-300'
+                          ? 'rounded-xl border-2 border-primary bg-primary-soft p-4 font-h3-card-title text-h3-card-title text-primary'
+                          : 'rounded-xl border border-dashed border-outline-variant p-4 font-h3-card-title text-h3-card-title text-text-muted hover:bg-surface-muted'
                         : isHeading
                           ? isActive
-                            ? 'bg-indigo-50/90 border-l-4 border-indigo-600 pl-4 py-3 px-3.5 text-indigo-900 shadow-2xs font-sans font-extrabold text-lg tracking-tight mt-6 mb-2 dark:bg-indigo-950/40 dark:text-indigo-300'
-                            : 'hover:bg-slate-50 py-3 px-3.5 mt-6 mb-2 block border-b pb-1.5 border-slate-100 font-sans font-bold text-lg tracking-tight text-slate-900 dark:text-white dark:border-slate-800'
+                            ? 'mt-6 mb-2 border-l-4 border-primary bg-primary-soft py-3 pl-4 pr-3.5 font-serif font-bold text-h1-page-title text-deep-navy'
+                            : 'mt-6 mb-2 block border-b border-border py-3 px-3.5 pb-1.5 font-serif font-bold text-h1-page-title text-deep-navy hover:bg-surface-muted dark:text-white'
                           : isActive
-                            ? 'bg-indigo-50/90 border-l-4 border-indigo-600 pl-4 py-2 px-3 text-slate-950 shadow-2xs font-serif font-medium leading-loose dark:bg-indigo-950/30 dark:text-indigo-100'
-                            : 'hover:bg-slate-50 py-2 px-3 block font-serif leading-loose text-slate-800 dark:text-slate-200'
+                            ? 'border-l-4 border-primary bg-primary-soft py-3 pl-4 pr-3.5 font-body-reading text-body-reading text-on-surface'
+                            : 'block py-2 px-3 font-body-reading text-body-reading text-on-surface hover:bg-surface-muted dark:text-slate-200'
                     }`}
                   >
                     {/* Heading or Graph label indicators built to increase professional styling */}
