@@ -1,0 +1,24 @@
+# Render Blueprint — deploys EidosUs as a single Node web service.
+# The Express server (server.ts) serves both the API and the built SPA.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: eidosus
+    runtime: node
+    plan: free
+    region: frankfurt # closest EU region; change to oregon/singapore if nearer
+    # --include=dev guarantees build tools (vite/esbuild/tsc) are installed even
+    # if the platform sets NODE_ENV=production during install.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # Secret — set the value in the Render dashboard, not in this file.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
+      - key: AI_FEATURES_ENABLED
+        value: "true"
+      # NODE_ENV=production is set by the `start` script; PORT is injected by Render.

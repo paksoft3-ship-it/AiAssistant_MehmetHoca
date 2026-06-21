@@ -51,6 +51,33 @@ See `.env.example`. Key variables:
 - The app does not claim "100% offline" or guaranteed premium voices, and never fabricates figure trends.
 - "Verilerimi Sil" permanently deletes all local data. See `docs/PRIVACY_AND_DATA_FLOW.md`.
 
+## Deploy to Render
+
+The whole app (API + SPA) runs as **one Node web service**, so Render needs no code changes. A `render.yaml` Blueprint is included.
+
+### 1. Push the repo to GitHub
+
+```bash
+# create an empty repo at https://github.com/new  (name it e.g. "eidosus"), then:
+git remote add origin https://github.com/<your-username>/eidosus.git
+git push -u origin main
+```
+
+(Secrets are safe to push: `.env*` is git-ignored — only `.env.example` is committed.)
+
+### 2. Create the Render service
+
+1. Sign up / log in at **https://render.com** (free).
+2. Click **New +** → **Blueprint**.
+3. **Connect your GitHub account** and pick the `eidosus` repo. Render reads `render.yaml` automatically.
+4. On the review screen, set the secret env var **`GEMINI_API_KEY`** to your key (the Blueprint marks it `sync: false`, so Render prompts you). Leave it blank to deploy without AI features.
+5. Click **Apply** / **Create**. Render runs `npm ci --include=dev && npm run build`, then `npm start`, and gives you an `https://eidosus-xxxx.onrender.com` URL.
+
+### Notes
+- **Cold starts:** the free plan sleeps after ~15 min idle; the first request then takes ~30–50s. Upgrade the plan (or use a paid host) to keep it always-on.
+- **Waitlist storage:** signups are written to an ephemeral disk and reset on each deploy/restart. Core app data is unaffected (it lives in each user's browser). Add a Render Disk or a database later if you need durable signups.
+- **Region:** `render.yaml` uses `frankfurt`; change it to the region nearest your users.
+
 ## Documentation
 
 - `docs/ARCHITECTURE.md` — system design and migration status
