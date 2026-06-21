@@ -530,7 +530,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 h-[calc(100vh-12rem)] min-h-[550px]">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 h-[calc(100vh-12rem)] lg:h-[calc(100vh-9rem)] min-h-[550px]">
             <div className={`lg:col-span-7 xl:col-span-8 h-full ${mobileTab === 'reader' ? 'block' : 'hidden'} lg:block`}>
               <ReaderPanel
                 article={displayArticle || activeArticle}
@@ -900,17 +900,20 @@ export default function App() {
         )}
       </main>
 
-      {/* App footer (always visible) */}
-      <footer className="border-t border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-2xs text-slate-400 sm:flex-row">
-          <span>
-            {PRODUCT.name} — {PRODUCT.subtitle} · Beta
-          </span>
-          <button onClick={() => setIsPrivacyOpen(true)} className="font-semibold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400">
-            Gizlilik ve Verileriniz
-          </button>
-        </div>
-      </footer>
+      {/* Marketing footer — only on the landing/dashboard. The reader is a
+          full-height workspace (no footer), matching the approved design. */}
+      {!activeArticle && (
+        <footer className="border-t border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-2xs text-slate-400 sm:flex-row">
+            <span>
+              {PRODUCT.name} — {PRODUCT.subtitle} · Beta
+            </span>
+            <button onClick={() => setIsPrivacyOpen(true)} className="font-semibold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+              Gizlilik ve Verileriniz
+            </button>
+          </div>
+        </footer>
+      )}
 
       <PrivacyNotice
         isOpen={isPrivacyOpen}
