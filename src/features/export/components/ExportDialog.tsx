@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Download, FileText, FileType2, FileCode2, Loader2 } from 'lucide-react';
+import { Icon } from '../../../components/ui/Icon';
 import type { ResearchNote } from '../../../types/domain';
 import {
   DEFAULT_EXPORT_OPTIONS,
@@ -17,11 +17,36 @@ export interface ExportDialogProps {
   onExported?: (result: ExportResult) => void;
 }
 
-const FORMATS: { value: ExportFormat; label: string; icon: typeof FileText }[] = [
-  { value: 'markdown', label: 'Markdown', icon: FileCode2 },
-  { value: 'docx', label: 'Word (DOCX)', icon: FileType2 },
-  { value: 'txt', label: 'Düz Metin (TXT)', icon: FileText },
+const FORMATS: { value: ExportFormat; label: string; sub: string; icon: string }[] = [
+  { value: 'markdown', label: 'Markdown', sub: 'Obsidian & Notion için ideal', icon: 'markdown' },
+  { value: 'docx', label: 'Word (DOCX)', sub: 'Akademik makale taslakları', icon: 'description' },
+  { value: 'txt', label: 'Düz Metin (TXT)', sub: 'Sadece ham metin', icon: 'article' },
 ];
+
+function Check({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="group flex cursor-pointer items-start gap-3">
+      <span className="relative mt-0.5 flex h-5 w-5 items-center justify-center">
+        <span
+          className={`h-5 w-5 rounded border transition-colors ${
+            checked ? 'border-primary bg-primary' : 'border-border bg-surface'
+          }`}
+        />
+        {checked && <Icon name="check" className="absolute text-[16px] text-white" />}
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only" />
+      </span>
+      <span className="text-on-surface transition-colors group-hover:text-primary dark:text-slate-200">{label}</span>
+    </label>
+  );
+}
 
 export default function ExportDialog({
   isOpen,
@@ -39,14 +64,12 @@ export default function ExportDialog({
 
   if (!isOpen) return null;
 
-  const toggleSelected = (id: string) => {
+  const toggleSelected = (id: string) =>
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
 
   const exportCount = selectMode ? selectedIds.size : notes.length;
 
@@ -55,12 +78,10 @@ export default function ExportDialog({
     setIsExporting(true);
     setError(null);
     try {
-      const result = await exportNotes(
-        documentId,
-        { title: documentTitle },
-        notes,
-        { ...options, selectedNoteIds: selectMode ? [...selectedIds] : null },
-      );
+      const result = await exportNotes(documentId, { title: documentTitle }, notes, {
+        ...options,
+        selectedNoteIds: selectMode ? [...selectedIds] : null,
+      });
       onExported?.(result);
       onClose();
     } catch (err) {
@@ -71,153 +92,119 @@ export default function ExportDialog({
     }
   };
 
-  const Checkbox = ({
-    checked,
-    onChange,
-    label,
-  }: {
-    checked: boolean;
-    onChange: (v: boolean) => void;
-    label: string;
-  }) => (
-    <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-      />
-      {label}
-    </label>
-  );
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-          <h3 className="flex items-center gap-2 font-sans text-base font-bold text-slate-900 dark:text-white">
-            <Download className="h-4 w-4 text-indigo-600" />
-            Notları Dışa Aktar
-          </h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-md backdrop-blur-sm sm:p-lg">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[24px] border border-border bg-surface shadow-lg dark:bg-slate-900">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border bg-surface px-lg py-md dark:bg-slate-900">
+          <div className="flex items-center gap-sm text-on-surface dark:text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-primary">
+              <Icon name="file_download" />
+            </div>
+            <h2 className="font-h2-section-title text-h2-section-title">Notları Dışa Aktar</h2>
+          </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-on-surface"
             aria-label="Kapat"
           >
-            <X className="h-5 w-5" />
+            <Icon name="close" />
           </button>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        {/* Body */}
+        <div className="flex flex-1 flex-col gap-xl overflow-y-auto p-lg">
           {/* Format */}
-          <div>
-            <label className="mb-2 block text-2xs font-bold uppercase tracking-wide text-slate-500">Biçim</label>
-            <div className="grid grid-cols-3 gap-2">
-              {FORMATS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setOptions((o) => ({ ...o, format: f.value }))}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-xs font-bold transition ${
-                    options.format === f.value
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <f.icon className="h-5 w-5" />
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Content options */}
-          <div>
-            <label className="mb-2 block text-2xs font-bold uppercase tracking-wide text-slate-500">İçerik</label>
-            <div className="space-y-2">
-              <Checkbox
-                checked={options.includeSourceExcerpt}
-                onChange={(v) => setOptions((o) => ({ ...o, includeSourceExcerpt: v }))}
-                label="Kaynak pasajları dahil et"
-              />
-              <Checkbox
-                checked={options.includeRawTranscript}
-                onChange={(v) => setOptions((o) => ({ ...o, includeRawTranscript: v }))}
-                label="Ham dökümleri dahil et"
-              />
-              <Checkbox
-                checked={options.includeTags}
-                onChange={(v) => setOptions((o) => ({ ...o, includeTags: v }))}
-                label="Etiketleri dahil et"
-              />
-            </div>
-          </div>
-
-          {/* Order */}
-          <div>
-            <label className="mb-2 block text-2xs font-bold uppercase tracking-wide text-slate-500">Sıralama</label>
-            <div className="flex gap-2">
-              {(['source', 'created'] as const).map((ord) => (
-                <button
-                  key={ord}
-                  onClick={() => setOptions((o) => ({ ...o, order: ord }))}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                    options.order === ord
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-                  }`}
-                >
-                  {ord === 'source' ? 'Kaynak sırası' : 'Eklenme zamanı'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Selection */}
-          <div>
-            <Checkbox
-              checked={selectMode}
-              onChange={(v) => setSelectMode(v)}
-              label="Yalnızca seçili notları dışa aktar"
-            />
-            {selectMode && (
-              <div className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">
-                {notes.map((n) => (
-                  <label
-                    key={n.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-2xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+          <section>
+            <h3 className="mb-md font-h3-card-title text-h3-card-title text-on-surface dark:text-white">Biçim</h3>
+            <div className="grid grid-cols-1 gap-md sm:grid-cols-3">
+              {FORMATS.map((f) => {
+                const selected = options.format === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    onClick={() => setOptions((o) => ({ ...o, format: f.value }))}
+                    className={`rounded-xl p-md text-left transition-all ${
+                      selected
+                        ? 'border-2 border-primary bg-primary-soft'
+                        : 'border border-border bg-surface hover:border-outline-variant hover:bg-surface-muted dark:bg-slate-900'
+                    }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(n.id)}
-                      onChange={() => toggleSelected(n.id)}
-                      className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="font-mono font-bold text-slate-400">#{n.ordinal}</span>
-                    <span className="truncate">{n.finalNote}</span>
-                  </label>
+                    <div className="mb-sm flex items-start justify-between">
+                      <Icon name={f.icon} className={selected ? 'text-primary' : 'text-text-muted'} />
+                      {selected && (
+                        <Icon name="check_circle" className="text-primary" style={{ fontVariationSettings: "'FILL' 1" }} />
+                      )}
+                    </div>
+                    <span className={`block font-medium ${selected ? 'text-primary' : 'text-on-surface dark:text-white'}`}>{f.label}</span>
+                    <span className={`mt-xs block font-small text-small ${selected ? 'text-primary/80' : 'text-text-muted'}`}>{f.sub}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <hr className="border-border" />
+
+          {/* Content + Order */}
+          <div className="grid grid-cols-1 gap-xl md:grid-cols-2">
+            <section>
+              <h3 className="mb-md font-h3-card-title text-h3-card-title text-on-surface dark:text-white">İçerik</h3>
+              <div className="flex flex-col gap-sm">
+                <Check checked={options.includeSourceExcerpt} onChange={(v) => setOptions((o) => ({ ...o, includeSourceExcerpt: v }))} label="Kaynak pasajları dahil et" />
+                <Check checked={options.includeRawTranscript} onChange={(v) => setOptions((o) => ({ ...o, includeRawTranscript: v }))} label="Ham dökümleri dahil et" />
+                <Check checked={options.includeTags} onChange={(v) => setOptions((o) => ({ ...o, includeTags: v }))} label="Etiketleri dahil et" />
+              </div>
+            </section>
+            <section>
+              <h3 className="mb-md font-h3-card-title text-h3-card-title text-on-surface dark:text-white">Sıralama</h3>
+              <div className="flex rounded-lg border border-border bg-surface-muted p-1 dark:bg-slate-800">
+                {([['source', 'Kaynak sırası'], ['created', 'Eklenme zamanı']] as const).map(([val, lbl]) => (
+                  <button
+                    key={val}
+                    onClick={() => setOptions((o) => ({ ...o, order: val }))}
+                    className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                      options.order === val ? 'bg-surface text-on-surface shadow-sm dark:bg-slate-900 dark:text-white' : 'text-text-muted hover:text-on-surface'
+                    }`}
+                  >
+                    {lbl}
+                  </button>
                 ))}
               </div>
-            )}
+
+              <label className="mt-md flex cursor-pointer items-center gap-2 font-small text-small text-text-muted">
+                <input type="checkbox" checked={selectMode} onChange={(e) => setSelectMode(e.target.checked)} className="h-4 w-4 rounded border-border text-primary focus:ring-primary" />
+                Yalnızca seçili notları aktar
+              </label>
+            </section>
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {selectMode && (
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
+              {notes.map((n) => (
+                <label key={n.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 font-small text-small text-text hover:bg-surface-muted dark:text-slate-300">
+                  <input type="checkbox" checked={selectedIds.has(n.id)} onChange={() => toggleSelected(n.id)} className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary" />
+                  <span className="font-label-mono text-label-mono text-text-muted">#{n.ordinal}</span>
+                  <span className="truncate">{n.finalNote}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="font-small text-small text-danger">{error}</p>}
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">
-          <span className="text-xs text-slate-400">{exportCount} not dışa aktarılacak</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="rounded-xl px-4 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              İptal
-            </button>
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-border px-lg py-md">
+          <span className="font-small text-small text-text-muted">{exportCount} not dışa aktarılacak</span>
+          <div className="flex items-center gap-sm">
+            <button onClick={onClose} className="rounded-btn px-4 py-2 font-medium text-text-muted transition-colors hover:bg-surface-muted">İptal</button>
             <button
               onClick={handleExport}
               disabled={isExporting || exportCount === 0}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-slate-700"
+              className="inline-flex items-center gap-1.5 rounded-btn bg-primary px-5 py-2 font-medium text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              <Icon name={isExporting ? 'progress_activity' : 'file_download'} className={isExporting ? 'animate-spin text-[18px]' : 'text-[18px]'} />
               Dışa Aktar
             </button>
           </div>

@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
-import {
-  Search, Edit2, Trash2, Check, X, Volume2, ArrowUpRight, Tag, Mic, Keyboard, MessageSquare, Wand2, Download,
-} from 'lucide-react';
 import type { ResearchNote, SourceAnchor } from '../../../types/domain';
+import { Icon } from '../../../components/ui/Icon';
 import { searchNotes, sortNotes, filterByTag, collectTags, type NoteSortKey } from '../services/noteQueries';
 import { parseTagInput } from '../services/noteFactory';
 
@@ -16,15 +14,14 @@ export interface ResearchNotesPanelProps {
   onExport?: () => void;
 }
 
-const ORIGIN_META: Record<ResearchNote['origin'], { label: string; icon: typeof Mic }> = {
-  voice: { label: 'Sesli', icon: Mic },
-  typed: { label: 'Yazılı', icon: Keyboard },
-  discussion: { label: 'Tartışma', icon: MessageSquare },
+const ORIGIN_META: Record<ResearchNote['origin'], { label: string; icon: string }> = {
+  voice: { label: 'Sesli', icon: 'mic' },
+  typed: { label: 'Yazılı', icon: 'keyboard' },
+  discussion: { label: 'Tartışma', icon: 'forum' },
 };
 
 export default function ResearchNotesPanel({
   notes,
-  documentTitle,
   onJumpToSource,
   onUpdateNote,
   onDeleteNote,
@@ -40,7 +37,6 @@ export default function ResearchNotesPanel({
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const allTags = useMemo(() => collectTags(notes), [notes]);
-
   const visible = useMemo(() => {
     let list = filterByTag(notes, activeTag);
     list = searchNotes(list, query);
@@ -52,246 +48,191 @@ export default function ResearchNotesPanel({
     setEditFinal(note.finalNote);
     setEditTags(note.tags.join(', '));
   };
-
   const saveEdit = (id: string) => {
     onUpdateNote(id, { finalNote: editFinal.trim(), tags: parseTagInput(editTags) });
     setEditingId(null);
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex h-full flex-col bg-canvas">
       {/* Header */}
-      <div className="border-b border-slate-100 p-4 dark:border-slate-800">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-1.5 font-sans text-base font-bold text-slate-900 dark:text-white">
-            Araştırma Notları
-            <span className="flex h-5 items-center justify-center rounded-full bg-indigo-50 px-2 text-2xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-              {notes.length}
-            </span>
-          </h3>
-          <div className="flex items-center gap-2">
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-surface px-6">
+        <div className="flex items-center gap-2">
+          <h3 className="font-h2-section-title text-h2-section-title text-on-surface dark:text-white">Araştırma Notları</h3>
+          <span className="rounded-full bg-surface-container px-2 py-0.5 font-label-mono text-label-mono text-text">{notes.length}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-text-muted transition-colors hover:bg-surface-muted" title="Sırala">
+            <Icon name="sort" className="text-[20px]" />
             <select
               value={sortKey}
               onChange={(e) => setSortKey(e.target.value as NoteSortKey)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
-              title="Sıralama"
+              className="absolute inset-0 cursor-pointer opacity-0"
+              aria-label="Sırala"
             >
               <option value="source">Kaynak sırası</option>
               <option value="created">Eklenme</option>
               <option value="updated">Güncelleme</option>
             </select>
-            {onExport && notes.length > 0 && (
-              <button
-                onClick={onExport}
-                className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300"
-                title="Notları dışa aktar"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Dışa Aktar
-              </button>
-            )}
-          </div>
+          </label>
+          {onExport && (
+            <button
+              onClick={onExport}
+              className="flex items-center gap-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-muted"
+            >
+              <Icon name="ios_share" className="text-[18px]" />
+              Dışa Aktar
+            </button>
+          )}
         </div>
-        <p className="mt-0.5 truncate text-xs text-slate-400">{documentTitle}</p>
-
-        {notes.length > 0 && (
-          <>
-            <div className="relative mt-3">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Notlarda, pasajda ve etiketlerde ara..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-2 pl-9 pr-4 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-              />
-            </div>
-            {allTags.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={() => setActiveTag('')}
-                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition ${
-                    activeTag === ''
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-                  }`}
-                >
-                  Tümü
-                </button>
-                {allTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => setActiveTag(activeTag === tag ? '' : tag)}
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition ${
-                      activeTag === tag
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
-                    }`}
-                  >
-                    <Tag className="h-2.5 w-2.5" />
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
       </div>
 
-      {/* List */}
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
-        {visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/50 bg-slate-50 text-slate-300 dark:border-slate-800 dark:bg-slate-800/40">
-              <Mic className="h-6 w-6" />
+      {/* Search + tag filters */}
+      {notes.length > 0 && (
+        <div className="shrink-0 space-y-3 border-b border-border bg-surface/50 p-4">
+          <div className="relative">
+            <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-text-muted" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Notlarda ara..."
+              className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 font-body-ui text-body-ui transition-colors focus:border-primary focus:ring-1 focus:ring-primary dark:bg-slate-900 dark:text-slate-200"
+            />
+          </div>
+          {allTags.length > 0 && (
+            <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+              <button
+                onClick={() => setActiveTag('')}
+                className={`shrink-0 rounded-full px-3 py-1 font-small text-small transition-colors ${
+                  activeTag === '' ? 'border border-primary/20 bg-primary-soft font-medium text-primary' : 'border border-border bg-surface text-text-muted hover:bg-surface-muted'
+                }`}
+              >
+                Tümü
+              </button>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setActiveTag(activeTag === tag ? '' : tag)}
+                  className={`shrink-0 rounded-full px-3 py-1 font-small text-small transition-colors ${
+                    activeTag === tag ? 'border border-primary/20 bg-primary-soft font-medium text-primary' : 'border border-border bg-surface text-text-muted hover:bg-surface-muted'
+                  }`}
+                >
+                  #{tag}
+                </button>
+              ))}
             </div>
-            <h4 className="mt-4 text-xs font-bold text-slate-700 dark:text-slate-200">
+          )}
+        </div>
+      )}
+
+      {/* Notes list */}
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        {visible.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface text-text-muted">
+              <Icon name="edit_note" className="text-[32px]" />
+            </div>
+            <h4 className="mt-4 font-h3-card-title text-h3-card-title text-on-surface dark:text-white">
               {notes.length === 0 ? 'Henüz Not Yok' : 'Eşleşen not bulunamadı'}
             </h4>
-            <p className="mt-1 max-w-xs text-2xs leading-relaxed text-slate-400">
+            <p className="mt-1.5 max-w-[260px] font-small text-small leading-relaxed text-text-muted">
               Okurken bir pasaj seçin ya da dinlerken durup{' '}
-              <strong className="text-red-500">Dur, Not Alalım!</strong> ile fikrinizi kaydedin.
+              <span className="font-medium text-danger">Dur, Not Alalım!</span> ile fikrinizi kaydedin.
             </p>
           </div>
         ) : (
           visible.map((note) => {
-            const Origin = ORIGIN_META[note.origin];
+            const origin = ORIGIN_META[note.origin];
             const isEditing = editingId === note.id;
+            const isAi = note.aiCleaningStatus === 'completed';
             return (
               <div
                 key={note.id}
-                className="group rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-3xs transition hover:shadow-2xs dark:border-slate-800 dark:bg-slate-900"
+                className="group relative overflow-hidden rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors hover:border-primary/30 dark:bg-slate-900"
               >
-                <div className="flex items-center justify-between border-b border-dashed border-slate-100 pb-2 dark:border-slate-800">
+                <div className="absolute left-0 top-0 h-full w-1 bg-primary opacity-0 transition-opacity group-hover:opacity-100" />
+                {/* Meta row */}
+                <div className="mb-3 flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-md bg-slate-100 text-[10px] font-mono font-extrabold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                      #{note.ordinal}
-                    </span>
+                    <span className="rounded bg-surface-muted px-1.5 py-0.5 font-label-mono text-label-mono text-text-muted dark:bg-slate-800">#{note.ordinal}</span>
                     <button
                       onClick={() => onJumpToSource(note.sourceAnchor)}
-                      className="inline-flex items-center gap-0.5 rounded bg-indigo-50/70 px-1.5 py-0.5 text-[10px] font-mono font-bold text-indigo-700 transition hover:bg-indigo-100/80 dark:bg-indigo-950/40 dark:text-indigo-400"
-                      title="Makaledeki kaynağa dön"
+                      className="flex items-center gap-0.5 font-small text-small text-primary hover:underline"
                     >
-                      <span>Sayfa {note.sourceAnchor.pageNumber}</span>
-                      <ArrowUpRight className="h-2.5 w-2.5" />
+                      Sayfa {note.sourceAnchor.pageNumber}
+                      <Icon name="arrow_outward" className="text-[14px]" />
                     </button>
-                    <span className="inline-flex items-center gap-0.5 rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 dark:bg-slate-800/60">
-                      <Origin.icon className="h-2.5 w-2.5" />
-                      {Origin.label}
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <span className="flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 font-label-mono text-label-mono text-text-muted dark:bg-slate-800">
+                      <Icon name={origin.icon} className="text-[12px]" /> {origin.label}
                     </span>
-                    {note.aiCleaningStatus === 'completed' && (
-                      <span
-                        className="inline-flex items-center gap-0.5 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:bg-violet-950/30 dark:text-violet-300"
-                        title="Yapay zeka ile akademik olarak düzenlendi"
-                      >
-                        <Wand2 className="h-2.5 w-2.5" />
-                        Düzenlendi
+                    {isAi && (
+                      <span className="flex items-center gap-1 rounded-full bg-primary-soft px-2 py-0.5 font-label-mono text-label-mono text-primary">
+                        <Icon name="auto_fix_high" className="text-[12px]" /> Düzenlendi
                       </span>
                     )}
                   </div>
                 </div>
 
                 {/* Source excerpt */}
-                <div className="mt-2 line-clamp-2 border-l border-slate-200 pl-2 text-2xs italic text-slate-400 dark:border-slate-700">
-                  &ldquo;{note.sourceAnchor.selectedText}&rdquo;
-                </div>
+                {note.sourceAnchor.selectedText && (
+                  <div className="mb-3 border-l-2 border-border pl-3">
+                    <p className="line-clamp-2 font-body-reading text-small italic text-text-muted">
+                      &ldquo;{note.sourceAnchor.selectedText}&rdquo;
+                    </p>
+                  </div>
+                )}
 
-                {/* Final note (or editor) */}
+                {/* Note body or editor */}
                 {isEditing ? (
-                  <div className="mt-3 space-y-2">
+                  <div className="space-y-2">
                     <textarea
                       value={editFinal}
                       onChange={(e) => setEditFinal(e.target.value)}
-                      className="min-h-[60px] w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      className="min-h-[64px] w-full rounded-lg border border-border p-2 font-body-ui text-body-ui focus:ring-1 focus:ring-primary dark:bg-slate-950 dark:text-white"
                     />
                     <input
                       value={editTags}
                       onChange={(e) => setEditTags(e.target.value)}
                       placeholder="Etiketler (virgülle)"
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] text-slate-700 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      className="w-full rounded-lg border border-border px-2 py-1.5 font-small text-small focus:ring-1 focus:ring-primary dark:bg-slate-950 dark:text-white"
                     />
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        onClick={() => saveEdit(note.id)}
-                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300"
-                      >
-                        <Check className="h-3 w-3" /> Kaydet
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      >
-                        <X className="h-3 w-3" /> İptal
-                      </button>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => saveEdit(note.id)} className="rounded-lg bg-primary px-3 py-1 font-small text-small font-medium text-on-primary hover:bg-primary-hover">Kaydet</button>
+                      <button onClick={() => setEditingId(null)} className="rounded-lg px-3 py-1 font-small text-small text-text-muted hover:bg-surface-muted">İptal</button>
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-3 break-words text-xs leading-relaxed text-slate-800 dark:text-slate-200">
-                    {note.finalNote}
-                  </p>
+                  <p className="mb-4 font-body-ui text-body-ui text-on-surface dark:text-slate-200">{note.finalNote}</p>
                 )}
 
-                {/* Tags */}
-                {!isEditing && note.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {note.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                      >
-                        <Tag className="h-2 w-2" />
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Actions */}
+                {/* Footer: tags + actions */}
                 {!isEditing && (
-                  <div className="mt-3 flex items-center justify-end gap-1.5 border-t border-slate-100/60 pt-2.5 dark:border-slate-800">
+                  <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-3">
+                    <div className="flex flex-wrap gap-x-2 gap-y-1">
+                      {note.tags.map((t) => (
+                        <span key={t} className="font-small text-small text-text-muted">#{t}</span>
+                      ))}
+                    </div>
                     {confirmId === note.id ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-semibold text-red-600">Silinsin mi?</span>
-                        <button
-                          onClick={() => {
-                            onDeleteNote(note.id);
-                            setConfirmId(null);
-                          }}
-                          className="rounded-md bg-red-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-red-700"
-                        >
-                          Evet, Sil
-                        </button>
-                        <button
-                          onClick={() => setConfirmId(null)}
-                          className="rounded-md px-2 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          Vazgeç
-                        </button>
+                        <span className="font-small text-small text-danger">Silinsin mi?</span>
+                        <button onClick={() => { onDeleteNote(note.id); setConfirmId(null); }} className="rounded-md bg-danger px-2 py-1 font-label-mono text-label-mono text-on-error">Evet</button>
+                        <button onClick={() => setConfirmId(null)} className="rounded-md px-2 py-1 font-label-mono text-label-mono text-text-muted hover:bg-surface-muted">Vazgeç</button>
                       </div>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => onPlayNote(note)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 transition hover:bg-slate-50 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800"
-                          title="Notu sesli dinle"
-                        >
-                          <Volume2 className="h-3 w-3" /> Dinle
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button onClick={() => onPlayNote(note)} className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-muted hover:text-primary" title="Dinle">
+                          <Icon name="volume_up" className="text-[18px]" />
                         </button>
-                        <button
-                          onClick={() => startEdit(note)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800"
-                          title="Notu düzenle"
-                        >
-                          <Edit2 className="h-3 w-3" /> Düzenle
+                        <button onClick={() => startEdit(note)} className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-muted" title="Düzenle">
+                          <Icon name="edit" className="text-[18px]" />
                         </button>
-                        <button
-                          onClick={() => setConfirmId(note.id)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/20"
-                          title="Notu sil"
-                        >
-                          <Trash2 className="h-3 w-3" /> Sil
+                        <button onClick={() => setConfirmId(note.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-danger-soft hover:text-danger" title="Sil">
+                          <Icon name="delete" className="text-[18px]" />
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
