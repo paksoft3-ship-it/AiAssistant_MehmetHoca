@@ -31,6 +31,7 @@ import NoteEditorModal, { type NoteEditorSaveData } from './features/notes/compo
 import ExportDialog from './features/export/components/ExportDialog';
 import PrivacyNotice from './components/PrivacyNotice';
 import LandingView from './components/LandingView';
+import LeftRail from './components/LeftRail';
 
 // High Craft Premium Turkish Sample Article Content for testing out of the box
 const SAMPLE_ARTICLE: Article = {
@@ -487,7 +488,7 @@ export default function App() {
     lang === 'tr' ? 'Türkçe' : lang === 'en' ? 'English' : lang.toUpperCase();
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas dark:bg-slate-950">
+    <div className={`flex flex-col bg-canvas dark:bg-slate-950 ${activeArticle ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <Navbar
         voices={voices}
         settings={settings}
@@ -498,37 +499,46 @@ export default function App() {
         onClearArticle={handleCloseArticle}
         articleTitle={displayArticle?.title || activeArticle?.title}
         articleLanguage={activeLanguage}
+        isPlaying={isPlaying}
+        onPlay={play}
+        onPause={pause}
+        onNext={nextSentence}
+        onPrev={prevSentence}
+        onStop={stop}
       />
 
       {activeArticle ? (
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          {/* Mobile panel switcher (desktop shows both panels side by side) */}
-          <div className="mb-4 flex gap-2 lg:hidden">
-            <button
-              onClick={() => setMobileTab('reader')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-btn px-3 py-2 text-sm font-medium transition ${
-                mobileTab === 'reader'
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface text-text-muted border border-border dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
-              }`}
-            >
-              <BookOpen className="h-4 w-4" /> Okuma
-            </button>
-            <button
-              onClick={() => setMobileTab('notes')}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-btn px-3 py-2 text-sm font-medium transition ${
-                mobileTab === 'notes'
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface text-text-muted border border-border dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
-              }`}
-            >
-              <NotebookPen className="h-4 w-4" /> Notlar ({notes.length})
-            </button>
-          </div>
+        <div className="flex flex-1 overflow-hidden">
+          <LeftRail
+            active={mobileTab}
+            onSelectReader={() => setMobileTab('reader')}
+            onSelectNotes={() => setMobileTab('notes')}
+            onSettings={() => setIsPrivacyOpen(true)}
+          />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Mobile panel switcher (desktop shows both panels) */}
+            <div className="flex gap-2 border-b border-border bg-surface p-2 lg:hidden">
+              <button
+                onClick={() => setMobileTab('reader')}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-btn px-3 py-2 text-sm font-medium transition ${
+                  mobileTab === 'reader' ? 'bg-primary text-on-primary' : 'border border-border bg-surface text-text-muted'
+                }`}
+              >
+                <BookOpen className="h-4 w-4" /> Okuma
+              </button>
+              <button
+                onClick={() => setMobileTab('notes')}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-btn px-3 py-2 text-sm font-medium transition ${
+                  mobileTab === 'notes' ? 'bg-primary text-on-primary' : 'border border-border bg-surface text-text-muted'
+                }`}
+              >
+                <NotebookPen className="h-4 w-4" /> Notlar ({notes.length})
+              </button>
+            </div>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 h-[calc(100vh-12rem)] lg:h-[calc(100vh-9rem)] min-h-[550px]">
-            <div className={`lg:col-span-7 xl:col-span-8 h-full ${mobileTab === 'reader' ? 'block' : 'hidden'} lg:block`}>
-              <ReaderPanel
+            <div className="flex flex-1 overflow-hidden">
+              <main className={`min-w-0 flex-1 overflow-hidden ${mobileTab === 'reader' ? 'block' : 'hidden'} lg:block`}>
+                <ReaderPanel
                 article={displayArticle || activeArticle}
                 isPlaying={isPlaying}
                 currentLineIdx={currentLineIdx}
@@ -557,21 +567,22 @@ export default function App() {
                 isTranslated={isTranslated}
                 onToggleOriginal={setIsReadingOriginal}
               />
-            </div>
+              </main>
 
-            <div className={`lg:col-span-5 xl:col-span-4 h-full ${mobileTab === 'notes' ? 'block' : 'hidden'} lg:block`}>
-              <ResearchNotesPanel
-                notes={notes}
-                documentTitle={activeArticle.title}
-                onJumpToSource={handleJumpToSource}
-                onUpdateNote={(id, patch) => void updateNote(id, patch)}
-                onDeleteNote={(id) => void deleteNote(id)}
-                onPlayNote={handlePlayNote}
-                onExport={() => setIsExportOpen(true)}
-              />
+              <aside className={`w-full shrink-0 border-l border-border lg:w-[400px] ${mobileTab === 'notes' ? 'block' : 'hidden'} lg:block`}>
+                <ResearchNotesPanel
+                  notes={notes}
+                  documentTitle={activeArticle.title}
+                  onJumpToSource={handleJumpToSource}
+                  onUpdateNote={(id, patch) => void updateNote(id, patch)}
+                  onDeleteNote={(id) => void deleteNote(id)}
+                  onPlayNote={handlePlayNote}
+                  onExport={() => setIsExportOpen(true)}
+                />
+              </aside>
             </div>
           </div>
-          </main>
+        </div>
         ) : (
           <LandingView
             isParsing={isParsing}

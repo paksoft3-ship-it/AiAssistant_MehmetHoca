@@ -14,6 +14,13 @@ interface NavbarProps {
   onClearArticle?: () => void;
   articleTitle?: string;
   articleLanguage?: string;
+  // Playback (reader mode) — rendered in the top bar centre, matching the design.
+  isPlaying?: boolean;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
+  onStop?: () => void;
 }
 
 export default function Navbar({
@@ -26,6 +33,12 @@ export default function Navbar({
   onClearArticle,
   articleTitle,
   articleLanguage = 'tr',
+  isPlaying,
+  onPlay,
+  onPause,
+  onNext,
+  onPrev,
+  onStop,
 }: NavbarProps) {
   const normalize = (lang: string) => lang.toLowerCase().replace('_', '-');
   const targetLangNorm = normalize(articleLanguage);
@@ -78,6 +91,28 @@ export default function Navbar({
             </>
           )}
         </div>
+
+        {/* Centre: playback controls (reader mode) */}
+        {hasArticle && onPlay && (
+          <div className="flex items-center justify-center gap-sm">
+            <button onClick={onPrev} className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted" title="Önceki Cümle">
+              <Icon name="skip_previous" />
+            </button>
+            <button
+              onClick={isPlaying ? onPause : onPlay}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-on-primary shadow-sm transition-colors hover:bg-primary-hover"
+              title="Oynat / Duraklat"
+            >
+              <Icon name={isPlaying ? 'pause' : 'play_arrow'} className="text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }} />
+            </button>
+            <button onClick={onNext} className="flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted" title="Sonraki Cümle">
+              <Icon name="skip_next" />
+            </button>
+            <button onClick={onStop} className="ml-sm flex h-10 w-10 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted" title="Durdur">
+              <Icon name="stop" />
+            </button>
+          </div>
+        )}
 
         {/* Right controls */}
         <div className="flex items-center gap-lg">

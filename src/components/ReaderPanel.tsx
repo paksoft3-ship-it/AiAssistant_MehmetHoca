@@ -179,7 +179,7 @@ export default function ReaderPanel({
   }, [article.lines.length, currentLineIdx]);
 
   return (
-    <div className="flex h-full flex-col bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+    <div className="relative mx-auto flex h-full w-full max-w-[820px] flex-col overflow-hidden border-x border-border bg-surface dark:bg-slate-900 dark:border-slate-800">
       
       {/* Article Header Details */}
       <div className="border-b border-slate-100 bg-slate-50/50 p-4.5 dark:border-slate-800 dark:bg-slate-900/40">
@@ -729,102 +729,26 @@ export default function ReaderPanel({
         </div>
       </div>
 
-      {/* Bottom Floating Interactive Assistant HUD Controls */}
-      <div className="border-t border-slate-200 bg-white p-4.5 dark:border-slate-800 dark:bg-slate-900">
-        
-        {/* Progress reading bar */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between text-2xs font-mono text-slate-400 mb-1">
-            <span>OKUMA İLERLEMESİ</span>
-            <span>%{readProgress}</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800">
-            <div 
-              className="h-full bg-indigo-600 rounded-full transition-all duration-300" 
-              style={{ width: `${readProgress}%` }}
-            />
-          </div>
+      {/* Floating "DUR, NOT ALALIM!" pill (playback now lives in the top bar) */}
+      <button
+        onClick={triggerNoteWithSelection}
+        className="absolute bottom-8 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border border-danger/20 bg-danger px-6 py-3 font-h3-card-title text-h3-card-title uppercase tracking-wide text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+        title="Okumayı durdurur ve notunuzu kaydeder"
+        id="trigger-voice-note-panel"
+      >
+        <span className="relative flex h-4 w-4 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+          <span className="relative h-2.5 w-2.5 rounded-full bg-white" />
+        </span>
+        <span>DUR, NOT ALALIM!</span>
+      </button>
+      {isHandsFreeActive && (
+        <div className="absolute bottom-24 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-danger-soft px-3 py-1 font-small text-small text-danger">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" />
+          Sistem kelimelerinizi dinliyor
         </div>
+      )}
 
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          
-          {/* Main Media playback controller */}
-          <div className="flex items-center justify-center space-x-2">
-            
-            {/* Previous */}
-            <button
-              onClick={onPrev}
-              disabled={currentLineIdx === 0}
-              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer dark:hover:bg-slate-800"
-              title="Önceki Cümle"
-              id="media-prev-btn"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-
-            {/* Play/Pause toggle */}
-            {isPlaying ? (
-              <button
-                onClick={onPause}
-                className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-800 shadow-xs hover:bg-slate-200 transition duration-150 cursor-pointer dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-                title="Okumayı Duraklat"
-                id="media-pause-btn"
-              >
-                <Pause className="h-5.5 w-5.5" />
-              </button>
-            ) : (
-              <button
-                onClick={onPlay}
-                className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-100 hover:bg-indigo-700 transition duration-150 cursor-pointer dark:shadow-none"
-                title="Sesli Okumayı Başlat"
-                id="media-play-btn"
-              >
-                <Play className="h-5.5 w-5.5 fill-white" />
-              </button>
-            )}
-
-            {/* Next */}
-            <button
-              onClick={onNext}
-              disabled={currentLineIdx >= article.lines.length - 1}
-              className="p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer dark:hover:bg-slate-800"
-              title="Sonraki Cümle"
-              id="media-next-btn"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-
-            {/* Reset / Stop */}
-            <button
-              onClick={onStop}
-              className="p-2.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer dark:hover:bg-slate-800"
-              title="Okumayı Sıfırla"
-              id="media-stop-btn"
-            >
-              <Square className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* MASSIVE INTERRUPT TRIGGER NOTE BUTTON */}
-          <button
-            onClick={triggerNoteWithSelection}
-            className="flex-1 flex max-w-full md:max-w-xs items-center justify-center space-x-2 py-3 px-5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm tracking-wide shadow-lg shadow-red-100 transition duration-240 cursor-pointer hover:scale-102 active:scale-98 animate-pulse dark:shadow-none"
-            title="Okumayı durdurur ve sesli notunuzu dinler"
-            id="trigger-voice-note-panel"
-          >
-            <span className="flex h-2.5 w-2.5 rounded-full bg-white opacity-90 animate-ping" />
-            <span>DUR, NOT ALALIM!</span>
-          </button>
-        </div>
-
-        {/* Handsfree micro banner status */}
-        {isHandsFreeActive && (
-          <div className="mt-2.5 flex items-center justify-center space-x-1.5 text-2xs font-medium text-red-500 bg-red-50/50 py-1 rounded-lg dark:bg-red-950/20">
-            <span className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
-            <span>Sistem kelimelerinizi dinliyor: Kulaklık kullanmanız önerilir</span>
-          </div>
-        )}
-      </div>
 
       {/* Yapay Zeka translation workflow overlay blocker */}
       {isTranslating && (
