@@ -59,7 +59,4 @@ export interface AppVoice {
   lang: string;
   localService: boolean;
   default: boolean;
-  isVirtual?: boolean;
-  virtualPitch?: number;
-  virtualRateMulti?: number;
 }

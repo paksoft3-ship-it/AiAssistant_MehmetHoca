@@ -4,6 +4,17 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Phase 6 — Secondary features cleanup & trust fixes (2026-06-21)
+- **Removed the fake "premium/AI" virtual voices.** Deleted the invented `virtual:tr:tolga/cem/dilara/yelda` entries and the `isVirtual`/`virtualPitch`/`virtualRateMulti` machinery. The voice list now contains only the real voices the browser/OS exposes.
+- **Centralized voice ranking** into `features/speech/services/voiceRanking.ts` (one honest, rule-based scorer used by both the speech hook and the Navbar — no more duplicated logic). Removed the dishonest scoring boosts (the +300 for invented persona names and the +150 gender boost); kept legitimate quality/cloud/provider hints.
+- **Removed misleading voice UI**: the 🌟 "premium" star, the fabricated `[Erkek]/[Kadın]` gender labels (which keyed off the fake names), and the "zero truncation of premium voices" comment. The voice picker now shows just the real name + language with an honest "depends on your device" tooltip.
+- **Fixed duplicate speed options** via a single `SPEED_OPTIONS` source of truth (`features/speech/services/speechOptions.ts`) — no more `1`/`1.0` or `2`/`2.0` duplicates.
+- **Gated figure/graph explanation behind `featureFlags.figureExplanation` (OFF by default)** and **removed the client-side fabricated graph fallback** (which invented an "upward trend"/"efficiency rise"); it now uses the same honest "cannot see the figure" message. With the flag off, a figure caption is simply read like any other line.
+- **Modularized secondary AI calls** off inline `fetch`: `features/translation/services/translationService.ts` (now used by `App`'s translation flow) and `features/discussion/services/discussionService.ts` (stable boundary for the not-yet-rewired discussion feature) — both via the centralized `lib/apiClient`.
+- **Deleted dead `SpeechRecordingModal`** (superseded by `NoteEditorModal` in Phase 2; it carried misleading copy and duplicate logic) and rebranded the Navbar to the product name from `config/product`.
+- **Tests:** +8 (now 66 total) — honest voice ranking (no persona/gender bias, cloud/natural preference, language-correct selection) and de-duplicated speed options.
+- Verified: `npm run lint` (pass), `npm test` (66 pass), `npm run build` (pass).
+
 ### Phase 4 — Export (2026-06-21)
 - **Markdown, DOCX, and TXT export** of research notes (`features/export`). DOCX uses the `docx` npm package; Markdown/TXT are pure string renderers.
 - **Export structure** (CLAUDE.md §12.1): product-neutral title ("Araştırma Notları"), document metadata, export date, note count; per note: number, page, source excerpt, final note, optional raw transcript, tags, and created date. Notes ordered by source position by default.

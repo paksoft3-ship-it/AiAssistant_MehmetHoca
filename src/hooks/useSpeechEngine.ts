@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ParsedLine, SpeechSettings, Note, AppVoice } from '../types';
+import {
+  getBestVoiceForLanguage,
+  getSpokenVoice,
+} from '../features/speech/services/voiceRanking';
+import { featureFlags } from '../config/featureFlags';
+
+// Re-exported for backward compatibility with existing imports.
+export { getSpokenVoice };
 
 function spellingTurkishNumber(num: number): string {
   if (num === 0) return 'sıfır';
@@ -144,133 +152,22 @@ function optimizeTextForTTS(text: string, lang: string = 'tr'): string {
 }
 
 /**
- * Ranks a voice to prefer high-quality, neural, cloud, or natural sounding voices.
- */
-function rankVoice(voice: AppVoice): number {
-  const name = voice.name.toLowerCase();
-  let score = 0;
-  
-  // Prefer natural, neural, online or premium cloud voices
-  if (name.includes('natural') || name.includes('neural') || name.includes('online') || name.includes('premium')) {
-    score += 500;
-  }
-  
-  if (voice.localService === false) {
-    score += 100;
-  }
-
-  // Prioritize Turkish high-quality male voices (Tolga/Cem are male, Dilara is premium female)
-  if (name.includes('tolga') || name.includes('cem') || name.includes('dilara')) {
-    score += 300;
-  }
-  if (name.includes('male') || name.includes('erkek') || name.includes('man') || name.includes('guy')) {
-    score += 150;
-  }
-  
-  if (name.includes('google')) {
-    score += 60;
-  }
-  if (name.includes('siri')) {
-    score += 50;
-  }
-  if (name.includes('microsoft')) {
-    score += 40;
-  }
-  if (name.includes('enhanced')) {
-    score += 30;
-  }
-  if (name.includes('apple')) {
-    score += 20;
-  }
-  
-  return score;
-}
-
-/**
- * Filter and find the highest quality voice for a given language tag.
- */
-function getBestVoiceForLanguage(voices: AppVoice[], targetLang: string): AppVoice | null {
-  const matching = voices.filter(v => 
-    v.lang.toLowerCase().replace('_', '-').startsWith(targetLang.toLowerCase().replace('_', '-')) ||
-    v.lang.toLowerCase().includes(targetLang.toLowerCase())
-  );
-  
-  if (matching.length === 0) return null;
-  
-  return [...matching].sort((a, b) => rankVoice(b) - rankVoice(a))[0];
-}
-
-/**
- * Retrieves the absolute best aligned voice for target document language.
- * Ensures we NEVER read Turkish with English voices or vice versa, resolving the sticky English language state bug.
- */
-export function getSpokenVoice(
-  voices: AppVoice[],
-  preferredVoiceURI: string,
-  targetLang: string
-): AppVoice | null {
-  const normalizedTarget = (targetLang || 'tr').toLowerCase().split(/[-_]/)[0];
-  
-  // 1. If preferred voice exists, verify that its language aligns with the document's target language!
-  if (preferredVoiceURI) {
-    const preferred = voices.find(v => v.voiceURI === preferredVoiceURI);
-    if (preferred) {
-      const prefLangNorm = preferred.lang.toLowerCase().split(/[-_]/)[0];
-      if (prefLangNorm === normalizedTarget) {
-        return preferred;
-      }
-    }
-  }
-  
-  // 2. Otherwise find the absolute highest-ranking voice of the targeted language
-  const bestVoice = getBestVoiceForLanguage(voices, targetLang);
-  if (bestVoice) return bestVoice;
-  
-  // 3. Last resort fallback
-  return voices[0] || null;
-}
-
-/**
- * Resolves physical SpeechSynthesisVoice and custom pitch/rate parameters for virtual/simulated high-fidelity voices
+ * Resolves the physical SpeechSynthesisVoice for the selected voice URI.
+ * (Voices are the real device voices only — no synthetic/virtual voices.)
  */
 export function resolvePhysicalVoiceAndParams(
   selectedVoiceURI: string,
   baseRate: number,
   basePitch: number,
-  voices: AppVoice[]
+  _voices: AppVoice[]
 ) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     return { voice: null, rate: baseRate, pitch: basePitch };
   }
-  
+
   const nativeVoices = window.speechSynthesis.getVoices();
-  const matchedAppVoice = voices.find(v => v.voiceURI === selectedVoiceURI);
-  
-  let resolvedPitch = basePitch;
-  let resolvedRate = baseRate;
-  let physicalURI = selectedVoiceURI;
-  
-  if (matchedAppVoice && matchedAppVoice.isVirtual) {
-    resolvedPitch = matchedAppVoice.virtualPitch ?? basePitch;
-    resolvedRate = baseRate * (matchedAppVoice.virtualRateMulti ?? 1.0);
-    
-    // Find absolute best native Turkish voice as the base physical voice for virtual Turkish voices
-    // We prioritize native high quality, then general turkish, then first native voice
-    const nativeTrVoice = nativeVoices.find(v => 
-      v.lang.toLowerCase().replace('_', '-').startsWith('tr')
-    ) || nativeVoices[0];
-    
-    if (nativeTrVoice) {
-      physicalURI = nativeTrVoice.voiceURI;
-    }
-  }
-  
-  const physicalVoice = nativeVoices.find(v => v.voiceURI === physicalURI) || null;
-  return {
-    voice: physicalVoice,
-    rate: resolvedRate,
-    pitch: resolvedPitch
-  };
+  const physicalVoice = nativeVoices.find(v => v.voiceURI === selectedVoiceURI) || null;
+  return { voice: physicalVoice, rate: baseRate, pitch: basePitch };
 }
 
 export function useSpeechEngine(
@@ -344,6 +241,8 @@ export function useSpeechEngine(
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     const allVoices = window.speechSynthesis.getVoices();
     
+    // Map the real device voices only. We never inject synthetic "premium"/"AI"
+    // voices — availability depends entirely on the browser and OS (CLAUDE.md §9.2).
     const mapped: AppVoice[] = allVoices.map(v => ({
       voiceURI: v.voiceURI,
       name: v.name,
@@ -352,58 +251,6 @@ export function useSpeechEngine(
       default: v.default,
     }));
 
-    // Find the base Turkish voice
-    const baseTr = allVoices.find(v => 
-      v.lang.toLowerCase().replace('_', '-').startsWith('tr')
-    ) || allVoices[0];
-
-    if (baseTr) {
-      // Prepend Turkish virtual premium voices
-      const virtualVoices: AppVoice[] = [
-        {
-          voiceURI: 'virtual:tr:tolga',
-          name: 'Yapay Zeka Erkek Sesi (Tolga - Derin)',
-          lang: 'tr-TR',
-          localService: baseTr.localService,
-          default: false,
-          isVirtual: true,
-          virtualPitch: 0.68,
-          virtualRateMulti: 0.95
-        },
-        {
-          voiceURI: 'virtual:tr:cem',
-          name: 'Yapay Zeka Erkek Sesi (Cem - Tok / Bilge)',
-          lang: 'tr-TR',
-          localService: baseTr.localService,
-          default: false,
-          isVirtual: true,
-          virtualPitch: 0.58,
-          virtualRateMulti: 0.88
-        },
-        {
-          voiceURI: 'virtual:tr:dilara',
-          name: 'Yapay Zeka Kadın Sesi (Dilara - Premium)',
-          lang: 'tr-TR',
-          localService: baseTr.localService,
-          default: false,
-          isVirtual: true,
-          virtualPitch: 1.15,
-          virtualRateMulti: 1.05
-        },
-        {
-          voiceURI: 'virtual:tr:yelda',
-          name: 'Yapay Zeka Kadın Sesi (Yelda - Doğal)',
-          lang: 'tr-TR',
-          localService: baseTr.localService,
-          default: false,
-          isVirtual: true,
-          virtualPitch: 0.98,
-          virtualRateMulti: 0.96
-        }
-      ];
-      mapped.unshift(...virtualVoices);
-    }
-    
     setVoices(mapped);
   }, []);
 
@@ -510,14 +357,16 @@ export function useSpeechEngine(
       console.error("Failed to fetch graph summary:", err);
       setIsSummarizingGraph(false);
 
+      // Honest fallback: we cannot see the figure's visual data, so we do NOT
+      // invent a trend or result (CLAUDE.md §14.6).
       const isTr = (articleLanguage || 'tr').toLowerCase().startsWith('tr');
-      const fallback = isTr
-        ? `Bu görsel analiz grafiği, "${line.text}" verilerini göstermektedir. Geleneksel öğrenime karşı adaptif dijital asistan kullanımının başarı yüzdelerini karşılaştırmalı olarak incelemekte ve adaptif yazılım destekli sınıflarda genel akademik artış eğilimini açıkça göstermektedir.`
-        : `This chart presents analytical trends regarding "${line.text}". It clearly indicates a measurable performance enhancement and efficiency rise corresponding with the adaptive assistance integrations detailed in the main text.`;
+      const honest = isTr
+        ? `Grafiğin görsel verilerine erişemediğim için yalnızca "${line.text}" başlığına dayanarak yorum yapabilirim. Görsel içerik olmadan bir eğilim veya sonuç iddia edemem.`
+        : `I cannot access the figure's visual data, so I can only comment based on the title "${line.text}". I cannot claim a trend or result without the visual content.`;
 
-      line.graphSummary = fallback;
-      setGraphSummaryText(fallback);
-      speakGraphSummary(fallback, index);
+      line.graphSummary = honest;
+      setGraphSummaryText(honest);
+      speakGraphSummary(honest, index);
     }
   }, [lines, articleLanguage]);
 
@@ -730,8 +579,10 @@ export function useSpeechEngine(
 
     utterance.onend = () => {
       if (isTransitioningRef.current) return;
-      
-      const isGraphLine = !!line.isGraph;
+
+      // Figure/graph explanation is experimental and off by default (CLAUDE.md §14.6).
+      // When disabled, a figure caption is simply read like any other line.
+      const isGraphLine = !!line.isGraph && featureFlags.figureExplanation;
       if (isGraphLine) {
         // Intercept play flow and ask for verbal approval
         handleGraphEncounter(index);

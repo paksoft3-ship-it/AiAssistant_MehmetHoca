@@ -1,5 +1,8 @@
-import { Settings, Volume2, Mic, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Volume2, Mic, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { SpeechSettings, AppVoice } from '../types';
+import { PRODUCT } from '../config/product';
+import { rankVoice } from '../features/speech/services/voiceRanking';
+import { SPEED_OPTIONS, formatSpeedLabel } from '../features/speech/services/speechOptions';
 
 interface NavbarProps {
   voices: AppVoice[];
@@ -11,47 +14,6 @@ interface NavbarProps {
   onClearArticle?: () => void;
   articleTitle?: string;
   articleLanguage?: string;
-}
-
-// Helper to rank voices by estimated quality
-function rankVoice(voice: AppVoice): number {
-  const name = voice.name.toLowerCase();
-  let score = 0;
-  
-  // Prefer natural, neural, online or premium cloud voices
-  if (name.includes('natural') || name.includes('neural') || name.includes('online') || name.includes('premium')) {
-    score += 500;
-  }
-  
-  if (voice.localService === false) {
-    score += 100;
-  }
-
-  // Prioritize Turkish high-quality male voices (Tolga/Cem are male, Dilara is premium female)
-  if (name.includes('tolga') || name.includes('cem') || name.includes('dilara')) {
-    score += 300;
-  }
-  if (name.includes('male') || name.includes('erkek') || name.includes('man') || name.includes('guy')) {
-    score += 150;
-  }
-  
-  if (name.includes('google')) {
-    score += 60;
-  }
-  if (name.includes('siri')) {
-    score += 50;
-  }
-  if (name.includes('microsoft')) {
-    score += 40;
-  }
-  if (name.includes('enhanced')) {
-    score += 30;
-  }
-  if (name.includes('apple')) {
-    score += 20;
-  }
-  
-  return score;
 }
 
 export default function Navbar({
@@ -95,7 +57,7 @@ export default function Navbar({
     })
     .sort((a, b) => rankVoice(b) - rankVoice(a));
   
-  // Combine all with a much larger limit to ensure zero truncation of premium voices
+  // Show the matched language voices first, then Turkish, then other major languages.
   const displayVoices = [...langMatchVoices, ...trVoices, ...extraVoices].slice(0, 100);
 
   return (
@@ -108,10 +70,10 @@ export default function Navbar({
           </div>
           <div>
             <h1 className="font-sans font-bold text-lg tracking-tight text-slate-900 dark:text-white">
-              Sesli Makale Asistanı
+              {PRODUCT.name}
             </h1>
             <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
-              Interaktif Okuma & Not Ortamı
+              {PRODUCT.taglineTr}
             </p>
           </div>
         </div>
@@ -145,39 +107,21 @@ export default function Navbar({
               value={settings.voiceURI}
               onChange={(e) => onSettingsChange({ ...settings, voiceURI: e.target.value })}
               className="max-w-[130px] sm:max-w-[200px] bg-transparent pl-2 pr-1 py-1 text-xs font-medium text-slate-700 focus:outline-hidden dark:text-slate-300"
-              title="Okuma Sesini Değiştir"
+              title="Okuma sesi (cihazınızda yüklü seslere göre değişir)"
               id="voice-select"
             >
               <option value="" disabled>--- Okuyucu Sesi ---</option>
-              {displayVoices.map((v) => {
-                const nameLower = v.name.toLowerCase();
-                const isPremium = nameLower.includes('natural') || 
-                                  nameLower.includes('google') || 
-                                  nameLower.includes('siri') || 
-                                  nameLower.includes('neural') ||
-                                  nameLower.includes('premium') ||
-                                  nameLower.includes('enhanced');
-                
-                // Try to identify voice gender/accent
-                let genderLabel = '';
-                if (nameLower.includes('male') || nameLower.includes('tolga') || nameLower.includes('cem') || nameLower.includes('guy') || nameLower.includes('erkek')) {
-                  genderLabel = ' [Erkek - Male]';
-                } else if (nameLower.includes('female') || nameLower.includes('yelda') || nameLower.includes('dilara') || nameLower.includes('sibel')) {
-                  genderLabel = ' [Kadın - Female]';
-                }
-
-                return (
-                  <option 
-                    key={v.voiceURI} 
-                    value={v.voiceURI}
-                    className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {isPremium ? '🌟 ' : ''}{v.name}{genderLabel} ({v.lang})
-                  </option>
-                );
-              })}
+              {displayVoices.map((v) => (
+                <option
+                  key={v.voiceURI}
+                  value={v.voiceURI}
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  {v.name} ({v.lang})
+                </option>
+              ))}
               {displayVoices.length === 0 && (
-                <option value="">Sistem Sesleri Yükleniyor...</option>
+                <option value="">Sistem sesleri yükleniyor...</option>
               )}
             </select>
 
@@ -193,14 +137,15 @@ export default function Navbar({
                 className="bg-transparent py-0.5 text-xs text-slate-600 focus:outline-hidden dark:text-slate-400 cursor-pointer font-medium"
                 id="rate-select"
               >
-                <option value="0.75" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">0.75x</option>
-                <option value="1" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">1.0x</option>
-                <option value="1.0" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">1.0x</option>
-                <option value="1.25" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">1.25x</option>
-                <option value="1.5" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">1.5x</option>
-                <option value="1.75" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">1.75x</option>
-                <option value="2" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">2.0x</option>
-                <option value="2.0" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">2.0x</option>
+                {SPEED_OPTIONS.map((speed) => (
+                  <option
+                    key={speed}
+                    value={String(speed)}
+                    className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    {formatSpeedLabel(speed)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

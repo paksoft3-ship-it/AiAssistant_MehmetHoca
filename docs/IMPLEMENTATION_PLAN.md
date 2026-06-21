@@ -46,8 +46,14 @@ _Updated at the end of every phase. Source of truth for sequencing._
 ## Phase 5 — Reader & library polish ⏳
 - Reader 3-pane desktop / tabbed mobile; search + progress; library filters/sorting; reliable TTS + dictation states.
 
-## Phase 6 — Secondary features cleanup ⏳
-- Modularize translation + discussion; **safe** figure explanation (no fabricated trends) behind a flag; remove misleading AI/voice claims; remove fake virtual voices and duplicate speed options.
+## Phase 6 — Secondary features cleanup ✅
+- ✅ Removed fake virtual "premium/AI" voices + virtual-voice machinery.
+- ✅ Centralized honest voice ranking (`features/speech`); removed persona/gender scoring bias and duplicated logic.
+- ✅ Removed misleading voice UI (🌟 star, fake gender labels, "zero truncation"); honest device-dependent copy.
+- ✅ Single `SPEED_OPTIONS` source — duplicate speed entries fixed.
+- ✅ Figure explanation gated behind `featureFlags.figureExplanation` (off); fabricated graph fallback removed (honest message).
+- ✅ Modularized translation + discussion services (via `lib/apiClient`); deleted dead `SpeechRecordingModal`.
+- Note: discussion UI is not re-wired into the reader yet (service + endpoint exist); a candidate for a later phase.
 
 ## Phase 7 — Landing, privacy & beta readiness ⏳
 - Landing page (`/`), waitlist (local/isolated), in-app privacy notice, "Verilerimi Sil", consistent error states, manual browser test pass.

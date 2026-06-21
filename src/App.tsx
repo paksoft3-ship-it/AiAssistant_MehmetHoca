@@ -14,6 +14,7 @@ import { documentService } from './features/documents/services/documentService';
 import { useResearchNotes } from './features/notes/hooks/useResearchNotes';
 import { buildSourceAnchor } from './features/notes/services/sourceAnchor';
 import { requestCleanNote } from './features/notes/services/aiNoteCleaning';
+import { translateText, translateBatch } from './features/translation/services/translationService';
 import { resetAllData, PREF_KEYS } from './db/reset';
 import { PRODUCT } from './config/product';
 import { featureFlags } from './config/featureFlags';
@@ -217,22 +218,9 @@ export default function App() {
     setTranslationProgress('Başlık Türkçeye çevriliyor...');
 
     try {
-      let translatedTitle = activeArticle.title;
-      let titleTranslatedSuccessfully = false;
-      try {
-        const titleRes = await fetch('/api/gemini/translate-text', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: activeArticle.title }),
-        });
-        const titleData = await titleRes.json();
-        if (titleData.translatedText && !titleData.isFallback) {
-          translatedTitle = titleData.translatedText;
-          titleTranslatedSuccessfully = true;
-        }
-      } catch (err) {
-        console.error('Title translation failed:', err);
-      }
+      const titleResult = await translateText(activeArticle.title);
+      const translatedTitle = titleResult.value;
+      const titleTranslatedSuccessfully = !titleResult.isFallback;
 
       const sPage = startPage || 1;
       const ePage = endPage || activeArticle.pages.length;
@@ -253,25 +241,15 @@ export default function App() {
           const startNum = activeBatch[0].pageNumber;
           const endNum = activeBatch[activeBatch.length - 1].pageNumber;
           setTranslationProgress(`Sayfalar [${startNum}-${endNum}] çevriliyor...`);
-          try {
-            const batchRes = await fetch('/api/gemini/translate-batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ texts: activeBatch.map((p) => p.text) }),
+          const batchResult = await translateBatch(activeBatch.map((p) => p.text));
+          if (!batchResult.isFallback) {
+            anyPageTranslatedSuccessfully = true;
+            let transIdx = 0;
+            currentBatch.forEach((page) => {
+              if (page.isWithinRange) translatedPagesText.push(batchResult.value[transIdx++]);
+              else translatedPagesText.push(page.text);
             });
-            const batchData = await batchRes.json();
-            if (batchData.translatedTexts && Array.isArray(batchData.translatedTexts) && !batchData.isFallback) {
-              anyPageTranslatedSuccessfully = true;
-              let transIdx = 0;
-              currentBatch.forEach((page) => {
-                if (page.isWithinRange) translatedPagesText.push(batchData.translatedTexts[transIdx++]);
-                else translatedPagesText.push(page.text);
-              });
-            } else {
-              currentBatch.forEach((p) => translatedPagesText.push(p.text));
-            }
-          } catch (err) {
-            console.error('Batch translation failed:', err);
+          } else {
             currentBatch.forEach((p) => translatedPagesText.push(p.text));
           }
         } else {
