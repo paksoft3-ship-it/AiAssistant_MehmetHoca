@@ -1,18 +1,26 @@
-import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent, DragEvent } from 'react';
-import { 
-  FileText, Upload, Mic, Trash2, ArrowRight, Activity, 
-  HelpCircle, Sparkles, BookOpen, AlertCircle, Info, RefreshCw 
+import { useState, useEffect, useCallback, useMemo, useRef, ChangeEvent, DragEvent, type ReactNode } from 'react';
+import {
+  FileText, Upload, Mic, Trash2, ArrowRight, Activity,
+  Sparkles, BookOpen, AlertCircle, Info, ShieldCheck
 } from 'lucide-react';
 
-import { Article, Note, SpeechSettings } from './types';
-import { parseFile, formatFileSize, compilePagesAndLines } from './utils/documentParser';
+import { Article } from './types';
+import type { ResearchNote, SourceAnchor } from './types/domain';
+import { parseFile, compilePagesAndLines, formatFileSize } from './utils/documentParser';
 import { useSpeechEngine } from './hooks/useSpeechEngine';
+
+import { useLibrary } from './features/documents/hooks/useLibrary';
+import { documentService } from './features/documents/services/documentService';
+import { useResearchNotes } from './features/notes/hooks/useResearchNotes';
+import { buildSourceAnchor } from './features/notes/services/sourceAnchor';
+import { resetAllData, PREF_KEYS } from './db/reset';
+import { PRODUCT } from './config/product';
 
 // Subcomponents
 import Navbar from './components/Navbar';
 import ReaderPanel from './components/ReaderPanel';
-import NotesPanel from './components/NotesPanel';
-import SpeechRecordingModal from './components/SpeechRecordingModal';
+import ResearchNotesPanel from './features/notes/components/ResearchNotesPanel';
+import NoteEditorModal, { type NoteEditorSaveData } from './features/notes/components/NoteEditorModal';
 
 // High Craft Premium Turkish Sample Article Content for testing out of the box
 const SAMPLE_ARTICLE: Article = {
@@ -64,15 +72,15 @@ const SAMPLE_ARTICLE: Article = {
     { text: "Yapay zeka teknolojilerinin eğitim sistemlerine entegrasyonu, kişiselleştirilmiş öğrenme deneyimini yeni bir boyuta taşımaktadır.", pageNumber: 1, lineNumber: 1, globalIndex: 0 },
     { text: "Geleneksel sınıf yöntemlerinde her öğrencinin farklı hızlarda öğrenmesi odağın dağılmasına yol açabilmektedir.", pageNumber: 1, lineNumber: 2, globalIndex: 1 },
     { text: "Oysa yapay zeka destekli akıllı öğrenme sistemleri, her bir öğrencinin güçlü ve zayıf yönlerini anlık olarak tespit ederek müfredatı ona göre uyarlayabilir.", pageNumber: 1, lineNumber: 3, globalIndex: 2 },
-    
+
     { text: "Makalenin ikinci sayfasındaki analizlere göre, adaptif öğrenme yazılımları kullanan sınıflarda genel başarı ortalaması %24 oranında artış göstermiştir.", pageNumber: 2, lineNumber: 1, globalIndex: 3 },
     { text: "Bu durum öğretmenlerin de idari ve rutin iş yüklerini hafifleterek doğrudan öğrencilerle kaliteli zaman geçirmelerine olanak tanımaktadır.", pageNumber: 2, lineNumber: 2, globalIndex: 4 },
     { text: "Öğretmenler ders hazırlığı veya ödev kontrolü yerine doğrudan mentorluk süreçlerine odaklanabilmektedirler.", pageNumber: 2, lineNumber: 3, globalIndex: 5 },
     { text: "Grafik 1: Adaptif Öğrenme Sistemlerinin Sınıf İçi Başarı Oranına Etkisi.", pageNumber: 2, lineNumber: 4, globalIndex: 6, isHeading: true, isGraph: true },
-    
+
     { text: "Akıllı eğitim asistanlarının diğer önemli bir boyutu ise engelsiz erişim imkanları sunmasıdır.", pageNumber: 3, lineNumber: 1, globalIndex: 7 },
     { text: "Görme engelli bir öğrenci için görsellerin sesli betimlenmesi veya işitme engelli bir öğrenci için canlı altyazı desteği gibi akıllı asistan araçları eğitimde fırsat eşitliğini tam olarak hayata geçirebilir.", pageNumber: 3, lineNumber: 2, globalIndex: 8 },
-    
+
     { text: "Gelecekte yapay zekanın rolü sadece yardımcı araç olmaktan çıkıp aktif bir öğrenme ortağı olmaya doğru evrilecektir.", pageNumber: 4, lineNumber: 1, globalIndex: 9 },
     { text: "Kuantum bilgisayarlar ve büyük dil modellerinin ortaklaşa çalışmasıyla, her bireyin kendi hızında uzmanlaşabileceği küresel ve erişilebilir bir akademi kurulması hayal olmaktan uzak görünmektedir.", pageNumber: 4, lineNumber: 2, globalIndex: 10 }
   ]
@@ -80,8 +88,6 @@ const SAMPLE_ARTICLE: Article = {
 
 export default function App() {
   const [activeArticle, setActiveArticle] = useState<Article | null>(null);
-  const [articlesList, setArticlesList] = useState<Article[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
   const [isParsing, setIsParsing] = useState(false);
   const [parsingPercent, setParsingPercent] = useState(0);
   const [parsingError, setParsingError] = useState<string | null>(null);
@@ -89,64 +95,39 @@ export default function App() {
   const [translationProgress, setTranslationProgress] = useState<string | null>(null);
   const [isReadingOriginal, setIsReadingOriginal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Holds the exact text the user selected when triggering a note (null = use active line).
+  const pendingSelectionRef = useRef<string | null>(null);
+
+  // IndexedDB-backed library + notes for the active document.
+  const { entries: libraryEntries, saveArticle, openArticle, removeDocument, reload: reloadLibrary } = useLibrary();
+  const { notes, addNote, updateNote, deleteNote } = useResearchNotes(activeArticle?.id ?? null);
 
   // Reset read-mode defaults when active article shifts
   useEffect(() => {
     setIsReadingOriginal(false);
   }, [activeArticle?.id]);
 
-  // --- PERSISTENCE STATE ENGINE ---
-  // Load initial caching databases from local storage
+  // Restore the last-opened document on startup (session continuity across reload).
   useEffect(() => {
-    const savedArticle = localStorage.getItem('sesli_makale_aktif');
-    const savedNotes = localStorage.getItem('sesli_makale_notlar');
-    const savedArchive = localStorage.getItem('sesli_makale_arsiv');
-    
-    if (savedArticle) {
-      try {
-        setActiveArticle(JSON.parse(savedArticle));
-      } catch (e) {
-        console.error('Failed to parse cached article:', e);
-      }
-    }
-    
-    if (savedNotes) {
-      try {
-        setNotes(JSON.parse(savedNotes));
-      } catch (e) {
-        console.error('Failed to parse cached notes:', e);
-      }
-    }
-
-    if (savedArchive) {
-      try {
-        setArticlesList(JSON.parse(savedArchive));
-      } catch (e) {
-        console.error('Failed to parse cached archive:', e);
-      }
-    }
+    const lastId = typeof localStorage !== 'undefined' ? localStorage.getItem(PREF_KEYS.lastActiveDocument) : null;
+    if (!lastId) return;
+    let cancelled = false;
+    void documentService.openArticle(lastId).then((article) => {
+      if (!cancelled && article) setActiveArticle(article);
+    });
+    return () => { cancelled = true; };
   }, []);
 
-  // Sync state data as things change
-  const saveArticleToCache = (article: Article | null) => {
-    setActiveArticle(article);
-    if (article) {
-      localStorage.setItem('sesli_makale_aktif', JSON.stringify(article));
-    } else {
-      localStorage.removeItem('sesli_makale_aktif');
-    }
-  };
+  // Refresh library (and note counts) whenever we return to the dashboard.
+  useEffect(() => {
+    if (!activeArticle) void reloadLibrary();
+  }, [activeArticle, reloadLibrary]);
 
-  const saveNotesToCache = (newNotes: Note[]) => {
-    setNotes(newNotes);
-    localStorage.setItem('sesli_makale_notlar', JSON.stringify(newNotes));
+  const rememberActive = (id: string | null) => {
+    if (typeof localStorage === 'undefined') return;
+    if (id) localStorage.setItem(PREF_KEYS.lastActiveDocument, id);
+    else localStorage.removeItem(PREF_KEYS.lastActiveDocument);
   };
-
-  const saveArchiveToCache = (newArchive: Article[]) => {
-    setArticlesList(newArchive);
-    localStorage.setItem('sesli_makale_arsiv', JSON.stringify(newArchive));
-  };
-
 
   // --- DOCUMENT PARSING PIPELINE ---
   const handleFileUpload = async (file: File) => {
@@ -155,10 +136,10 @@ export default function App() {
     setParsingError(null);
 
     try {
-      const parsed = await parseFile(file, (percent) => {
-        setParsingPercent(percent);
-      });
-      saveArticleToCache(parsed);
+      const parsed = await parseFile(file, (percent) => setParsingPercent(percent));
+      await saveArticle(parsed, 'upload');
+      setActiveArticle(parsed);
+      rememberActive(parsed.id);
     } catch (err: any) {
       console.error(err);
       setParsingError(err.message || 'Dosya çözümlenirken bilinmeyen bir hata oluştu.');
@@ -167,26 +148,78 @@ export default function App() {
     }
   };
 
+  const handleInputFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) handleFileUpload(files[0]);
+  };
+
+  const handleDragOver = (e: DragEvent) => e.preventDefault();
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) handleFileUpload(files[0]);
+  };
+
+  const handleLoadSample = async () => {
+    await saveArticle(SAMPLE_ARTICLE, 'sample');
+    setActiveArticle(SAMPLE_ARTICLE);
+    rememberActive(SAMPLE_ARTICLE.id);
+    setParsingError(null);
+  };
+
+  // --- LIBRARY ACTIONS ---
+  const handleOpenFromLibrary = async (documentId: string) => {
+    const article = await openArticle(documentId);
+    if (article) {
+      setActiveArticle(article);
+      rememberActive(article.id);
+      setParsingError(null);
+    }
+  };
+
+  const handleRemoveFromLibrary = async (documentId: string) => {
+    await removeDocument(documentId);
+    if (activeArticle?.id === documentId) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+      setActiveArticle(null);
+      rememberActive(null);
+    }
+  };
+
+  const handleCloseArticle = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    setActiveArticle(null);
+    rememberActive(null);
+  };
+
+  const handleClearAllData = async () => {
+    const confirmed = window.confirm(
+      'Tüm yerel verileriniz (belgeler ve notlar) kalıcı olarak silinecek. Bu işlem geri alınamaz. Devam edilsin mi?',
+    );
+    if (!confirmed) return;
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    await resetAllData({ includeLegacy: true });
+    setActiveArticle(null);
+    rememberActive(null);
+    await reloadLibrary();
+  };
+
+  // --- TRANSLATION (in-memory for this session; base document stays original) ---
   const handleTranslateToTurkish = async (startPage?: number, endPage?: number) => {
     if (!activeArticle) return;
-    
-    // Stop speaking if playing
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+
     setIsTranslating(true);
-    setTranslationProgress("Başlık Türkçeye çevriliyor...");
+    setTranslationProgress('Başlık Türkçeye çevriliyor...');
 
     try {
-      // 1. Translate Title
       let translatedTitle = activeArticle.title;
       let titleTranslatedSuccessfully = false;
       try {
         const titleRes = await fetch('/api/gemini/translate-text', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: activeArticle.title })
+          body: JSON.stringify({ text: activeArticle.title }),
         });
         const titleData = await titleRes.json();
         if (titleData.translatedText && !titleData.isFallback) {
@@ -194,86 +227,60 @@ export default function App() {
           titleTranslatedSuccessfully = true;
         }
       } catch (err) {
-        console.error("Title translation failed:", err);
+        console.error('Title translation failed:', err);
       }
 
-      // 2. Select pages to translate based on custom user range (startPage to endPage, 1-based)
-      const totalPages = activeArticle.pages.length;
       const sPage = startPage || 1;
-      const ePage = endPage || totalPages;
+      const ePage = endPage || activeArticle.pages.length;
+      const pagesToTranslate = activeArticle.pages.map((page) => ({
+        ...page,
+        isWithinRange: page.pageNumber >= sPage && page.pageNumber <= ePage,
+      }));
 
-      const pagesToTranslate = activeArticle.pages.map(page => {
-        const isWithinRange = page.pageNumber >= sPage && page.pageNumber <= ePage;
-        return {
-          ...page,
-          isWithinRange
-        };
-      });
-
-      // We translate pages in efficient batches to avoid hitting API rate limits
-      // To satisfy user desire for completing the whole thing or custom ranges,
-      // we only prompt Gemini for pages within the user's requested range!
       const chunkBatchSize = 5;
       const translatedPagesText: string[] = [];
       let anyPageTranslatedSuccessfully = false;
 
       for (let i = 0; i < pagesToTranslate.length; i += chunkBatchSize) {
         const currentBatch = pagesToTranslate.slice(i, i + chunkBatchSize);
-        const activeBatchInTranslation = currentBatch.filter(p => p.isWithinRange);
-        
-        if (activeBatchInTranslation.length > 0) {
-          const startNum = activeBatchInTranslation[0].pageNumber;
-          const endNum = activeBatchInTranslation[activeBatchInTranslation.length - 1].pageNumber;
-          
+        const activeBatch = currentBatch.filter((p) => p.isWithinRange);
+
+        if (activeBatch.length > 0) {
+          const startNum = activeBatch[0].pageNumber;
+          const endNum = activeBatch[activeBatch.length - 1].pageNumber;
           setTranslationProgress(`Sayfalar [${startNum}-${endNum}] çevriliyor...`);
-          
           try {
-            const batchTexts = activeBatchInTranslation.map(p => p.text);
             const batchRes = await fetch('/api/gemini/translate-batch', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ texts: batchTexts })
+              body: JSON.stringify({ texts: activeBatch.map((p) => p.text) }),
             });
             const batchData = await batchRes.json();
-            
             if (batchData.translatedTexts && Array.isArray(batchData.translatedTexts) && !batchData.isFallback) {
               anyPageTranslatedSuccessfully = true;
-              
-              // Map translated back to respective indices in currentBatch
               let transIdx = 0;
-              currentBatch.forEach(page => {
-                if (page.isWithinRange) {
-                  translatedPagesText.push(batchData.translatedTexts[transIdx]);
-                  transIdx++;
-                } else {
-                  translatedPagesText.push(page.text);
-                }
+              currentBatch.forEach((page) => {
+                if (page.isWithinRange) translatedPagesText.push(batchData.translatedTexts[transIdx++]);
+                else translatedPagesText.push(page.text);
               });
             } else {
-              // Fallback to original
-              currentBatch.forEach(p => translatedPagesText.push(p.text));
+              currentBatch.forEach((p) => translatedPagesText.push(p.text));
             }
           } catch (err) {
-            console.error(`Batch translation failed:`, err);
-            currentBatch.forEach(p => translatedPagesText.push(p.text));
+            console.error('Batch translation failed:', err);
+            currentBatch.forEach((p) => translatedPagesText.push(p.text));
           }
         } else {
-          // If no pages in range, preserve original layout texts perfectly
-          currentBatch.forEach(p => translatedPagesText.push(p.text));
+          currentBatch.forEach((p) => translatedPagesText.push(p.text));
         }
       }
 
-      // If translation completely failed/fell back on active portions
       if (!anyPageTranslatedSuccessfully && !titleTranslatedSuccessfully) {
-        alert("Yapay zeka Türkçe çeviri motoru kota aşımı veya bağlantı hatası nedeniyle başlatılamadı. Makaleyi orijinal dilinde okuyup dinlemeye devam edebilirsiniz.");
-        setIsTranslating(false);
-        setTranslationProgress(null);
+        alert('Yapay zeka Türkçe çeviri motoru kota aşımı veya bağlantı hatası nedeniyle başlatılamadı. Makaleyi orijinal dilinde okuyup dinlemeye devam edebilirsiniz.');
         return;
       }
 
-      setTranslationProgress("Türkçe yapısı yapılandırılıyor...");
-
-      // 3. Compile translated pages back to Structured Pages and Lines
+      setTranslationProgress('Türkçe yapısı yapılandırılıyor...');
       const compiled = compilePagesAndLines(translatedPagesText, activeArticle.id);
 
       const translatedArticle: Article = {
@@ -283,8 +290,6 @@ export default function App() {
         pages: compiled.pages,
         lines: compiled.lines,
         language: 'tr',
-        
-        // Preserve original content!
         originalTitle: activeArticle.originalTitle || activeArticle.title,
         originalText: activeArticle.originalText || activeArticle.text,
         originalPages: activeArticle.originalPages || activeArticle.pages,
@@ -292,183 +297,20 @@ export default function App() {
         originalLanguage: activeArticle.originalLanguage || activeArticle.language || 'en',
       };
 
-      // 4. Save to cache
-      saveArticleToCache(translatedArticle);
-
-      // If already saved in library, update its record
-      const isSaved = articlesList.some(a => a.id === activeArticle.id);
-      if (isSaved) {
-        const updatedArchive = articlesList.map(a => a.id === activeArticle.id ? { ...translatedArticle, serialNumber: a.serialNumber } : a);
-        saveArchiveToCache(updatedArchive);
-      }
-
-      // Reset speech engine state to the beginning
+      setActiveArticle(translatedArticle);
       setLineIndex(0);
-
     } catch (err: any) {
-      console.error("Article translation workflow failure:", err);
-      alert("Yapay zeka ile Türkçe dil çevirisi yapılırken bir hata oluştu.");
+      console.error('Article translation workflow failure:', err);
+      alert('Yapay zeka ile Türkçe dil çevirisi yapılırken bir hata oluştu.');
     } finally {
       setIsTranslating(false);
       setTranslationProgress(null);
     }
   };
 
-  const handleInputFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileUpload(files[0]);
-    }
-  };
-
-  const handleDragOver = (e: DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: DragEvent) => {
-    e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFileUpload(files[0]);
-    }
-  };
-
-  // Launch pre-loaded high fidelity Turkish template
-  const handleLoadSample = () => {
-    saveArticleToCache(SAMPLE_ARTICLE);
-    setParsingError(null);
-  };
-
-  // --- LIBRARY ACTIONS ---
-  const handleSaveToLibrary = () => {
-    if (!activeArticle) return;
-    
-    // Check if already archived
-    const exists = articlesList.some(a => a.id === activeArticle.id);
-    if (exists) return;
-    
-    const nextSerialNumber = articlesList.length + 1;
-    const articleToSave: Article = {
-      ...activeArticle,
-      serialNumber: nextSerialNumber
-    };
-    
-    const updated = [...articlesList, articleToSave];
-    saveArchiveToCache(updated);
-    
-    // Mirror inside active state so header reflects saved status
-    saveArticleToCache(articleToSave);
-  };
-
-  const handleCloseArticle = () => {
-    // Stop synthesis Speech
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    
-    // If the article we are closing was NEVER saved to the archive library, 
-    // garbage collect its notes to keep localStorage memory uncluttered
-    if (activeArticle) {
-      const isSaved = articlesList.some(a => a.id === activeArticle.id);
-      if (!isSaved) {
-        const cleanedNotes = notes.filter(n => n.articleId !== activeArticle.id);
-        saveNotesToCache(cleanedNotes);
-      }
-    }
-    
-    saveArticleToCache(null);
-  };
-
-  const handleDeleteArticleFromLibrary = (id: string) => {
-    const remaining = articlesList.filter(a => a.id !== id);
-    // Renumber surviving items consecutively starting from #1
-    const renumbered = remaining.map((art, index) => ({
-      ...art,
-      serialNumber: index + 1
-    }));
-    saveArchiveToCache(renumbered);
-    
-    // Trash notes corresponding to this specific deleted document
-    const remainingNotes = notes.filter(n => n.articleId !== id);
-    saveNotesToCache(remainingNotes);
-    
-    // If deleted document is current focused read, exit cleanly
-    if (activeArticle && activeArticle.id === id) {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-      saveArticleToCache(null);
-    }
-  };
-
-  const handleLoadArticleFromLibrary = (article: Article) => {
-    saveArticleToCache(article);
-    setParsingError(null);
-  };
-
-
-  // --- NOTES TAKING PIPELINE ---
-  const handleNoteTaken = useCallback((
-    noteText: string, 
-    pageNum: number, 
-    lineNum: number, 
-    context: string
-  ) => {
-    if (!activeArticle) return;
-
-    const currentArticleId = activeArticle.id;
-    // Count notes scoped only to this specific article to provide local sequential numbering
-    const currentNotesCount = notes.filter(n => n.articleId === currentArticleId).length;
-
-    const newNote: Note = {
-      id: crypto.randomUUID(),
-      number: currentNotesCount + 1,
-      timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      pageNumber: pageNum,
-      lineNumber: lineNum,
-      contextText: context,
-      noteText: noteText,
-      createdAt: new Date().toISOString(),
-      articleId: currentArticleId,
-      articleTitle: activeArticle.title,
-    };
-
-    const updated = [...notes, newNote];
-    saveNotesToCache(updated);
-  }, [activeArticle, notes]);
-
-  const handleEditNote = (id: string, newText: string) => {
-    const updated = notes.map(n => n.id === id ? { ...n, noteText: newText } : n);
-    saveNotesToCache(updated);
-  };
-
-  const handleDeleteNote = (id: string) => {
-    const targetNote = notes.find(n => n.id === id);
-    if (!targetNote) return;
-    
-    const remaining = notes.filter(n => n.id !== id);
-    
-    // Re-number surviving notes for the affected article only!
-    const updated = remaining.map(n => {
-      if (n.articleId === targetNote.articleId) {
-        const articleSurvivorsPrior = remaining.filter(
-          res => res.articleId === targetNote.articleId && res.createdAt < n.createdAt
-        );
-        return {
-          ...n,
-          number: articleSurvivorsPrior.length + 1
-        };
-      }
-      return n;
-    });
-    
-    saveNotesToCache(updated);
-  };
-
-
   // --- DYNAMICALLY COMPUTED ARTICLE VIEWS (ORIGINAL VS. TRANSLATED) ---
   const isTranslated = !!activeArticle?.originalLines;
-  
+
   const displayArticle = useMemo(() => {
     if (!activeArticle) return null;
     const hasOriginal = !!activeArticle.originalLines;
@@ -485,49 +327,32 @@ export default function App() {
     return activeArticle;
   }, [activeArticle, isReadingOriginal]);
 
-  const activeLines = useMemo(() => {
-    return displayArticle ? displayArticle.lines : [];
-  }, [displayArticle]);
-
-  const activeLanguage = useMemo(() => {
-    return displayArticle ? (displayArticle.language || 'tr') : 'tr';
-  }, [displayArticle]);
+  const activeLines = useMemo(() => (displayArticle ? displayArticle.lines : []), [displayArticle]);
+  const activeLanguage = useMemo(() => (displayArticle ? displayArticle.language || 'tr' : 'tr'), [displayArticle]);
 
   // --- INTEGRATED SPEECH HOOK BINDINGS ---
-  
   const handleLineIndexChangeInSpeech = useCallback((index: number) => {
-    // 1. Update active article's lastReadIndex state & cache
-    setActiveArticle(prev => {
+    setActiveArticle((prev) => {
       if (!prev) return null;
       if (prev.lastReadIndex === index) return prev;
       const updated = { ...prev, lastReadIndex: index };
-      localStorage.setItem('sesli_makale_aktif', JSON.stringify(updated));
+      // Persist reading position to IndexedDB (fire-and-forget).
+      const page = updated.lines[index]?.pageNumber ?? 1;
+      void documentService.setReadingPosition(updated.id, index, page);
       return updated;
     });
 
-    // 2. Also locate if this article exists inside archive (library list) and update its lastReadIndex there
-    setArticlesList(prevList => {
-      if (!activeArticle?.id) return prevList;
-      const exists = prevList.some(a => a.id === activeArticle.id);
-      if (!exists) return prevList;
-      const updatedList = prevList.map(a => 
-        a.id === activeArticle.id ? { ...a, lastReadIndex: index } : a
-      );
-      localStorage.setItem('sesli_makale_arsiv', JSON.stringify(updatedList));
-      return updatedList;
-    });
-
-    // 3. Scroll active highlighted line into view in Reader viewport
-    const activeTextElt = document.querySelector('#document-reading-viewport');
-    if (activeTextElt) {
+    const viewport = document.querySelector('#document-reading-viewport');
+    if (viewport) {
       setTimeout(() => {
-        const activeLineElt = activeTextElt.querySelector('.border-l-4');
-        if (activeLineElt) {
-          activeLineElt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        const activeLineElt = viewport.querySelector('.border-l-4');
+        if (activeLineElt) activeLineElt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 50);
     }
-  }, [activeArticle?.id]);
+  }, []);
+
+  // Notes are persisted through useResearchNotes; the speech hook's callback is a no-op.
+  const noopNoteTaken = useCallback(() => {}, []);
 
   const {
     voices,
@@ -553,10 +378,9 @@ export default function App() {
     setLineIndex,
     triggerNoteTaking,
     cancelRecording,
-    saveRecordedNote,
     startSpeechRecognition,
     stopSpeechRecognition,
-    
+
     // Graph variables
     activeGraphLine,
     isAwaitingGraphApproval,
@@ -568,102 +392,74 @@ export default function App() {
   } = useSpeechEngine(
     activeLines,
     handleLineIndexChangeInSpeech,
-    handleNoteTaken,
+    noopNoteTaken,
     activeLanguage,
-    activeArticle?.lastReadIndex || 0
+    activeArticle?.lastReadIndex || 0,
   );
 
+  // --- SOURCE-LINKED NOTE WORKFLOW ---
+  const handleTriggerNote = useCallback((selectedText?: string) => {
+    pendingSelectionRef.current = selectedText ?? null;
+    triggerNoteTaking();
+  }, [triggerNoteTaking]);
 
-  // --- SINGLE & MASS NOTE REPLAY OUT LOUD ---
-  const handlePlaySingleNote = (note: Note) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    
-    // Cancel underlying reader speech first
-    window.speechSynthesis.cancel();
+  // Anchor computed live at render time (depends on the selection ref set at trigger).
+  const noteAnchor: SourceAnchor | null = activeArticle
+    ? buildSourceAnchor({
+        documentId: activeArticle.id,
+        lines: activeLines,
+        activeIndex: currentLineIdx,
+        selectedText: pendingSelectionRef.current,
+      })
+    : null;
 
-    // Read single note elegantly as requested
-    const textStr = `Not numara ${note.number}. Sayfa ${note.pageNumber}, satır ${note.lineNumber} için notunuz: ${note.noteText}`;
-    const utterance = new SpeechSynthesisUtterance(textStr);
-    
-    // Load custom settings
-    if (settings.voiceURI) {
-      const activeVoice = voices.find(v => v.voiceURI === settings.voiceURI);
-      if (activeVoice) {
-        utterance.voice = activeVoice;
-        utterance.lang = activeVoice.lang;
-      }
-    } else {
-      const trFallback = voices.find(v => v.lang.startsWith('tr'));
-      if (trFallback) {
-        utterance.voice = trFallback;
-        utterance.lang = 'tr-TR';
-      }
-    }
-    utterance.rate = settings.rate;
-    utterance.pitch = settings.pitch;
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handlePlayAllNotes = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis || notes.length === 0) return;
-    
-    // Pause underlying reader speech first
-    window.speechSynthesis.cancel();
-
-    const activeNotes = notes.filter(n => n.articleId === activeArticle?.id);
-    if (activeNotes.length === 0) return;
-
-    let textStr = `Makaleniz için tutulan toplam ${activeNotes.length} adet not seslendiriliyor. `;
-    activeNotes.forEach(n => {
-      textStr += `Not ${n.number}. Sayfa ${n.pageNumber}, satır ${n.lineNumber} notu: ${n.noteText}. `;
+  const handleSaveResearchNote = async (data: NoteEditorSaveData) => {
+    if (!noteAnchor) return;
+    await addNote({
+      sourceAnchor: noteAnchor,
+      origin: data.origin,
+      rawTranscript: data.rawTranscript,
+      finalNote: data.finalNote,
+      tags: data.tags,
     });
+    pendingSelectionRef.current = null;
+    cancelRecording();
+  };
 
-    const utterance = new SpeechSynthesisUtterance(textStr);
-    
-    if (settings.voiceURI) {
-      const activeVoice = voices.find(v => v.voiceURI === settings.voiceURI);
-      if (activeVoice) {
-        utterance.voice = activeVoice;
-        utterance.lang = activeVoice.lang;
-      }
-    } else {
-      const trFallback = voices.find(v => v.lang.startsWith('tr'));
-      if (trFallback) {
-        utterance.voice = trFallback;
-        utterance.lang = 'tr-TR';
-      }
+  const handleCloseNoteEditor = () => {
+    pendingSelectionRef.current = null;
+    cancelRecording();
+  };
+
+  const handleJumpToSource = (anchor: SourceAnchor) => {
+    if (anchor.globalIndex == null) return;
+    setLineIndex(anchor.globalIndex);
+    setTimeout(() => handleLineIndexChangeInSpeech(anchor.globalIndex!), 50);
+  };
+
+  // --- NOTE PLAYBACK ---
+  const speakText = useCallback((text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const activeVoice = settings.voiceURI
+      ? voices.find((v) => v.voiceURI === settings.voiceURI)
+      : voices.find((v) => v.lang.startsWith('tr'));
+    if (activeVoice) {
+      utterance.voice = activeVoice as unknown as SpeechSynthesisVoice;
+      utterance.lang = activeVoice.lang;
     }
     utterance.rate = settings.rate;
     utterance.pitch = settings.pitch;
-
     window.speechSynthesis.speak(utterance);
-  };
+  }, [settings, voices]);
 
-
-  // Filter notes representing the active article (if active)
-  const currentArticleNotes = activeArticle 
-    ? notes.filter(n => n.articleId === activeArticle.id)
-    : [];
-
-  const handleJumpToSentence = (pageNumber: number, lineNumber: number) => {
-    if (!activeArticle) return;
-    // Find matching global index for designated sentence
-    const matchedLine = activeArticle.lines.find(l => l.pageNumber === pageNumber && l.lineNumber === lineNumber);
-    if (matchedLine) {
-      setLineIndex(matchedLine.globalIndex);
-      
-      // Let it automatically scroll to center
-      setTimeout(() => {
-        handleLineIndexChangeInSpeech(matchedLine.globalIndex);
-      }, 50);
-    }
+  const handlePlayNote = (note: ResearchNote) => {
+    speakText(`Not ${note.ordinal}, sayfa ${note.sourceAnchor.pageNumber}: ${note.finalNote}`);
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
-      
-      {/* Top sticky navbar */}
       <Navbar
         voices={voices}
         settings={settings}
@@ -676,14 +472,9 @@ export default function App() {
         articleLanguage={activeLanguage}
       />
 
-      {/* Main Workspace Layout block */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {activeArticle ? (
-          
-          /* ACTIVE READING VIEW PANEL SPLIT SCREEN */
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 h-[calc(100vh-12rem)] min-h-[550px]">
-            
-            {/* Left Column: Academic Page Reader Sheet (Takes up 7/12 layout) */}
             <div className="lg:col-span-7 xl:col-span-8 h-full">
               <ReaderPanel
                 article={displayArticle || activeArticle}
@@ -695,15 +486,11 @@ export default function App() {
                 onNext={nextSentence}
                 onPrev={prevSentence}
                 onSentenceClick={setLineIndex}
-                onTriggerNote={triggerNoteTaking}
+                onTriggerNote={handleTriggerNote}
                 isHandsFreeActive={isHandsFreeActive}
-                isSavedInLibrary={
-                  activeArticle ? articlesList.some(a => a.id === activeArticle.id) : false
-                }
-                onSaveToLibrary={handleSaveToLibrary}
+                isSavedInLibrary
+                onSaveToLibrary={() => {}}
                 onCloseArticle={handleCloseArticle}
-                
-                // Graph integration bindings
                 activeGraphLine={activeGraphLine}
                 isAwaitingGraphApproval={isAwaitingGraphApproval}
                 graphSummaryText={graphSummaryText}
@@ -711,56 +498,46 @@ export default function App() {
                 graphSpeechRecActive={graphSpeechRecActive}
                 approveGraphSummary={approveGraphSummary}
                 declineGraphSummary={declineGraphSummary}
-
-                // Translation bindings
                 isTranslating={isTranslating}
                 translationProgress={translationProgress}
                 onTranslateToTurkish={handleTranslateToTurkish}
-
-                // Dynamic Original/Translated Toggle variables
                 isReadingOriginal={isReadingOriginal}
                 isTranslated={isTranslated}
                 onToggleOriginal={setIsReadingOriginal}
               />
             </div>
 
-            {/* Right Column: Active Interactive Notes Stream Timeline (3/12 Layout) */}
             <div className="lg:col-span-5 xl:col-span-4 h-full">
-              <NotesPanel
-                notes={currentArticleNotes}
-                onPlaySingleNote={handlePlaySingleNote}
-                onPlayAllNotes={handlePlayAllNotes}
-                onJumpToSentence={handleJumpToSentence}
-                onEditNote={handleEditNote}
-                onDeleteNote={handleDeleteNote}
-                currentArticleTitle={activeArticle.title}
+              <ResearchNotesPanel
+                notes={notes}
+                documentTitle={activeArticle.title}
+                onJumpToSource={handleJumpToSource}
+                onUpdateNote={(id, patch) => void updateNote(id, patch)}
+                onDeleteNote={(id) => void deleteNote(id)}
+                onPlayNote={handlePlayNote}
               />
             </div>
           </div>
-
         ) : (
-          
-          /* UNLOADED LANDING PAGE DASHBOARD LAYOUT */
           <div className="mx-auto max-w-4xl space-y-12">
-            
-            {/* Landing Hero Headings */}
+            {/* Landing Hero */}
             <div className="text-center space-y-4">
               <div className="inline-flex items-center space-x-2 rounded-full bg-indigo-50 px-3.5 py-1.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-                <Sparkles className="h-4 w-4 animate-pulse" />
-                <span>Sesli Okuma ve Konuşmayla Not Alabilen Eğitim Asistanı</span>
+                <Sparkles className="h-4 w-4" />
+                <span>{PRODUCT.name} — {PRODUCT.taglineTr}</span>
               </div>
               <h2 className="font-sans font-extrabold text-3xl sm:text-4xl text-slate-950 tracking-tight dark:text-white leading-tight">
-                Makaleleri Dinleyin, Söylediğiniz Anda <br />
+                Makaleyi dinleyin, durun, düşüncenizi söyleyin <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-500">
-                  Zaman Damgalı Not Defteri
-                </span> Oluşsun.
+                  kaynağa bağlı araştırma notuna
+                </span> dönüşsün.
               </h2>
               <p className="mx-auto max-w-2xl text-sm sm:text-base text-slate-500 dark:text-slate-400 font-sans leading-relaxed">
-                PDF, DOCX ve TXT dosyalarınızı yükleyin, dilediğiniz hız ve ses seçeneğiyle makalenizi baştan sona dinleyin. Aralarda durmak istediğinizde seslenerek veya tek tuşla, sayfa ve satır bilgisiyle konuşarak not tutun.
+                PDF, DOCX ve TXT akademik belgelerinizi yükleyin; dinlerken önemli bir pasajı seçin, fikrinizi sesli ya da yazılı kaydedin, ham düşünceyi koruyun ve düzenlenmiş notunuzu tam kaynak bağlamıyla saklayın.
               </p>
             </div>
 
-            {/* Standard Dropzone Loader layout */}
+            {/* Dropzone */}
             <div
               onDragOver={handleDragOver}
               onDrop={handleDrop}
@@ -771,72 +548,49 @@ export default function App() {
               }`}
             >
               <div className="mx-auto flex max-w-xl flex-col items-center justify-center">
-                
                 {isParsing ? (
-                  /* Parsing indicator screen */
                   <div className="space-y-4 py-6">
                     <div className="relative flex items-center justify-center">
                       <div className="h-16 w-16 animate-spin rounded-full border-4 border-slate-100 border-t-indigo-600" />
                       <FileText className="absolute h-6 w-6 text-indigo-600 animate-pulse" />
                     </div>
                     <div className="text-center">
-                      <p className="font-sans font-bold text-slate-800 text-sm dark:text-white">
-                        Belge Analiz Ediliyor...
-                      </p>
-                      <p className="text-2xs text-slate-400 mt-1 font-mono">
-                        Seçilen döküman içerikleri, sayfalar ve cümle yapıları ayrıştırılıyor
-                      </p>
+                      <p className="font-sans font-bold text-slate-800 text-sm dark:text-white">Belge Analiz Ediliyor...</p>
+                      <p className="text-2xs text-slate-400 mt-1 font-mono">Sayfalar ve cümle yapıları ayrıştırılıyor</p>
                     </div>
-                    
-                    {/* Linear Parsing Percentage Progress */}
                     <div className="w-48 mx-auto">
                       <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
                         <span>İŞLENİYOR</span>
                         <span>%{parsingPercent}</span>
                       </div>
                       <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden dark:bg-slate-800">
-                        <div 
-                          className="h-full bg-indigo-600 transition-all duration-300"
-                          style={{ width: `${parsingPercent}%` }}
-                        />
+                        <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${parsingPercent}%` }} />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  /* Standard Empty drag area */
                   <>
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-md shadow-indigo-100 dark:shadow-none dark:bg-indigo-950/40 dark:text-indigo-400">
                       <Upload className="h-7 w-7" />
                     </div>
-                    <h3 className="mt-5 font-sans font-bold text-slate-800 text-base dark:text-white">
-                      Makale Dosyasını Buraya Bırakın veya Seçin
-                    </h3>
+                    <h3 className="mt-5 font-sans font-bold text-slate-800 text-base dark:text-white">Akademik Belgeyi Buraya Bırakın veya Seçin</h3>
                     <p className="mt-1.5 text-xs text-slate-400 leading-relaxed max-w-sm">
-                      Desteklenen formatlar: <strong className="text-slate-600 dark:text-slate-300">PDF, DOCX</strong> veya <strong className="text-slate-600 dark:text-slate-300">TXT</strong>. 
+                      Desteklenen formatlar: <strong className="text-slate-600 dark:text-slate-300">PDF, DOCX</strong> veya <strong className="text-slate-600 dark:text-slate-300">TXT</strong>.
                     </p>
-
-                    {/* Choose file buttons */}
                     <div className="mt-6">
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="inline-flex items-center space-x-2 rounded-xl bg-indigo-600 px-5  py-2.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition duration-150 cursor-pointer dark:shadow-none"
+                        className="inline-flex items-center space-x-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition duration-150 cursor-pointer dark:shadow-none"
                         id="select-file-button"
                       >
                         <span>Cihazdan Dosya Seç</span>
                         <ArrowRight className="h-4 w-4" />
                       </button>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleInputFileChange}
-                        accept=".pdf,.docx,.doc,.txt"
-                        className="hidden"
-                      />
+                      <input type="file" ref={fileInputRef} onChange={handleInputFileChange} accept=".pdf,.docx,.txt" className="hidden" />
                     </div>
                   </>
                 )}
 
-                {/* Parsing error notifications if there's any */}
                 {parsingError && (
                   <div className="mt-6 flex items-start space-x-2 rounded-xl bg-red-50 p-4.5 text-left border border-red-100 dark:bg-red-950/20 dark:border-red-900/30">
                     <AlertCircle className="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400 flex-none" />
@@ -849,19 +603,15 @@ export default function App() {
               </div>
             </div>
 
-            {/* Quick Demo Pre-loader option */}
+            {/* Sample loader */}
             <div className="flex flex-col sm:flex-row items-center justify-between rounded-2xl border border-indigo-100/60 bg-indigo-50/15 p-5 dark:border-indigo-900/30 dark:bg-indigo-950/10">
               <div className="flex items-center space-x-3 text-left">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100/80 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
                   <FileText className="h-5.5 w-5.5" />
                 </div>
                 <div>
-                  <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200">
-                    Bilgisayarımda makale dökümanı yok
-                  </h4>
-                  <p className="text-[11px] text-slate-400">
-                    Eğitim, yapay zeka ve müfredatla ilgili hazır Türkçe akademik makaleyi anında yükleyin.
-                  </p>
+                  <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200">Bilgisayarımda makale dökümanı yok</h4>
+                  <p className="text-[11px] text-slate-400">Eğitim ve yapay zeka üzerine hazır Türkçe akademik makaleyi anında yükleyin.</p>
                 </div>
               </div>
               <button
@@ -874,168 +624,149 @@ export default function App() {
               </button>
             </div>
 
-            {/* PERSISTENT ARTICLES ARCHIVE LIBRARY PANEL */}
-            {articlesList.length > 0 && (
+            {/* Library */}
+            {libraryEntries.length > 0 && (
               <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
                   <div>
                     <h3 className="font-sans font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-600 animate-pulse" />
-                      Makale Kütüphaneniz
+                      <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-600" />
+                      Belge Kütüphaneniz
                     </h3>
                     <p className="text-2xs font-mono text-slate-500 dark:text-slate-400">
-                      Sıra numarasıyla kayıtlı toplam {articlesList.length} adet belgeniz bulunuyor
+                      Yerelde (tarayıcınızda) kayıtlı {libraryEntries.length} belge
                     </p>
                   </div>
                 </div>
 
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {articlesList.map((art) => {
-                    const articleNotesCount = notes.filter(n => n.articleId === art.id).length;
-                    return (
-                      <div key={art.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 first:pt-0 last:pb-0 gap-3 group text-left">
-                        <div className="flex items-start space-x-3 text-left">
-                          {/* Serial No label */}
-                          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-indigo-50 font-mono text-xs font-black text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
-                            #{art.serialNumber}
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200 line-clamp-1 group-hover:text-indigo-600 transition-colors duration-200">
-                              {art.title}
-                            </h4>
-                            <p className="text-[10px] text-slate-400 font-mono flex flex-wrap items-center gap-2 mt-0.5">
-                              <span className="uppercase">{art.fileType} • {art.fileSize}</span>
-                              <span>•</span>
-                              <span>DİL: {
-                                art.language === 'tr' ? 'Türkçe' :
-                                art.language === 'en' ? 'English' :
-                                art.language ? art.language.toUpperCase() : 'Bilinmiyor'
-                              }</span>
-                              {articleNotesCount > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-red-500 font-extrabold flex items-center gap-0.5">
-                                    🎙️ {articleNotesCount} Not/Alıntı
-                                  </span>
-                                </>
-                              )}
-                            </p>
-                          </div>
+                  {libraryEntries.map(({ document: doc, noteCount }, idx) => (
+                    <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3.5 first:pt-0 last:pb-0 gap-3 group text-left">
+                      <div className="flex items-start space-x-3 text-left">
+                        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-indigo-50 font-mono text-xs font-black text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                          #{idx + 1}
                         </div>
-
-                        <div className="flex items-center space-x-2 self-end sm:self-center">
-                          <button
-                            onClick={() => handleLoadArticleFromLibrary(art)}
-                            className="inline-flex items-center space-x-1.5 rounded-xl bg-indigo-50 px-3.5 py-2 text-2xs font-bold text-indigo-750 hover:bg-indigo-100 transition duration-150 cursor-pointer dark:bg-indigo-950 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
-                          >
-                            <BookOpen className="h-4 w-4" />
-                            <span>Okumaya Başla</span>
-                          </button>
-                          
-                          <button
-                            onClick={() => handleDeleteArticleFromLibrary(art.id)}
-                            className="p-2 rounded-xl border border-slate-100 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-105 transition duration-150 cursor-pointer dark:border-slate-800 dark:hover:bg-red-950/20"
-                            title="Kütüphaneden ve notlarıyla birlikte sil"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        <div className="min-w-0">
+                          <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200 line-clamp-1 group-hover:text-indigo-600 transition-colors duration-200">
+                            {doc.title}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-mono flex flex-wrap items-center gap-2 mt-0.5">
+                            <span className="uppercase">{doc.fileType} • {formatFileSize(doc.fileSizeBytes)}</span>
+                            <span>•</span>
+                            <span>DİL: {doc.language === 'tr' ? 'Türkçe' : doc.language === 'en' ? 'English' : doc.language.toUpperCase()}</span>
+                            {noteCount > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-indigo-600 font-extrabold dark:text-indigo-400">{noteCount} Not</span>
+                              </>
+                            )}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
+
+                      <div className="flex items-center space-x-2 self-end sm:self-center">
+                        <button
+                          onClick={() => handleOpenFromLibrary(doc.id)}
+                          className="inline-flex items-center space-x-1.5 rounded-xl bg-indigo-50 px-3.5 py-2 text-2xs font-bold text-indigo-700 hover:bg-indigo-100 transition duration-150 cursor-pointer dark:bg-indigo-950 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                        >
+                          <BookOpen className="h-4 w-4" />
+                          <span>Okumaya Devam Et</span>
+                        </button>
+                        <button
+                          onClick={() => handleRemoveFromLibrary(doc.id)}
+                          className="p-2 rounded-xl border border-slate-100 text-slate-400 hover:text-red-600 hover:bg-red-50 transition duration-150 cursor-pointer dark:border-slate-800 dark:hover:bg-red-950/20"
+                          title="Belgeyi ve notlarıyla birlikte sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Interactive Bento Feature Grid description */}
+            {/* How it works */}
             <div className="space-y-4">
-              <h3 className="font-sans font-bold text-sm uppercase tracking-widest text-slate-400 text-center select-none">
-                NASIL ÇALIŞIR?
-              </h3>
+              <h3 className="font-sans font-bold text-sm uppercase tracking-widest text-slate-400 text-center select-none">NASIL ÇALIŞIR?</h3>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                
-                {/* 1 */}
-                <div className="rounded-2xl border border-slate-200/50 bg-white p-5 shadow-3xs hover:shadow-2xs transition duration-150 dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400">
-                    <BookOpen className="h-4.5 w-4.5" />
-                  </div>
-                  <h4 className="mt-3 font-sans font-bold text-xs text-slate-800 dark:text-white">
-                    1. Hızlı ve Akıllı Okuyucu
-                  </h4>
-                  <p className="mt-1 text-2xs text-slate-400 leading-relaxed">
-                    Yüklediğiniz dökümanlar sisteme alınır ve sayfalara bölünür. İstediğiniz ses hızını ayarlayarak makalenin tamamını dilediğinizce dinleyebilirsiniz.
-                  </p>
-                </div>
-
-                {/* 2 */}
-                <div className="rounded-2xl border border-slate-200/50 bg-white p-5 shadow-3xs hover:shadow-2xs transition duration-150 dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                    <Mic className="h-4.5 w-4.5" />
-                  </div>
-                  <h4 className="mt-3 font-sans font-bold text-xs text-slate-800 dark:text-white">
-                    2. Kesintisiz Sesli Notasyon &ldquo;Dur!&rdquo;
-                  </h4>
-                  <p className="mt-1 text-2xs text-slate-400 leading-relaxed">
-                    Eşzamanlı eller serbest (hands-free) modunu açarak konuşurken veya yeşil butonla <strong className="text-red-500">Dur, Not Alalım!</strong> dediğiniz an okuyucu ses durur ve notunuzu sesle yazdırabilirsiniz.
-                  </p>
-                </div>
-
-                {/* 3 */}
-                <div className="rounded-2xl border border-slate-200/50 bg-white p-5 shadow-3xs hover:shadow-2xs transition duration-150 dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
-                    <Activity className="h-4.5 w-4.5" />
-                  </div>
-                  <h4 className="mt-3 font-sans font-bold text-xs text-slate-800 dark:text-white">
-                    3. Konum ve Detay İndisleme
-                  </h4>
-                  <p className="mt-1 text-2xs text-slate-400 leading-relaxed">
-                    Tuttuğunuz her not; o sırada okunmakta olan cümlenin tam Sayfa, Satır numarasını ve Zaman damgasını tutarak ardışık numaralarla fihriste kilitlenir.
-                  </p>
-                </div>
-
-                {/* 4 */}
-                <div className="rounded-2xl border border-slate-200/50 bg-white p-5 shadow-3xs hover:shadow-2xs transition duration-150 dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
-                    <Info className="h-4.5 w-4.5" />
-                  </div>
-                  <h4 className="mt-3 font-sans font-bold text-xs text-slate-800 dark:text-white">
-                    4. Geri Dinle, Düzenle ve İndir
-                  </h4>
-                  <p className="mt-1 text-2xs text-slate-400 leading-relaxed">
-                    Listenizdeki tüm notları tek tek okutabilir, dilediğiniz cümleye tıklayarak makale metnine ışınlanabilir ve çalışmalarınızı toplu TXT olarak indirebilirsiniz.
-                  </p>
-                </div>
-
+                <FeatureCard icon={<BookOpen className="h-4.5 w-4.5" />} tone="indigo" title="1. Dinle ve Aktif Oku" body="Belgeniz sayfalara ve cümlelere bölünür. Hızı ve sesi ayarlayıp dilediğiniz cümleden dinlemeye başlayın." />
+                <FeatureCard icon={<Mic className="h-4.5 w-4.5" />} tone="red" title="2. Pasaj Seç, Notunu Söyle" body="Bir metni seçip 'Bu Metne Not Ekle' deyin ya da dinlerken durup fikrinizi sesli/yazılı kaydedin. Ham döküm korunur." />
+                <FeatureCard icon={<Activity className="h-4.5 w-4.5" />} tone="emerald" title="3. Kaynağa Bağla" body="Her not, seçtiğiniz pasaja, sayfasına ve çevresel bağlamına bağlanır; tek tıkla kaynağa geri dönebilirsiniz." />
+                <FeatureCard icon={<Info className="h-4.5 w-4.5" />} tone="amber" title="4. Düzenle ve Sakla" body="Notu etiketleyin, nihai akademik biçimine getirin; her şey tarayıcınızda yerel olarak saklanır." />
               </div>
             </div>
 
+            {/* Privacy / data control */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200/60 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start gap-3 text-left">
+                <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-emerald-600" />
+                <div>
+                  <h4 className="font-sans font-bold text-xs text-slate-800 dark:text-slate-200">Verileriniz yerelde kalır</h4>
+                  <p className="text-[11px] leading-relaxed text-slate-400">
+                    Belgeleriniz ve notlarınız tarayıcınızda saklanır. Tarayıcı verilerini temizlemek bunları silebilir; önemli notları dışa aktarmanız önerilir.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleClearAllData}
+                className="flex-none rounded-xl border border-red-200 px-4 py-2 text-2xs font-bold text-red-600 transition hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/20"
+              >
+                Verilerimi Sil
+              </button>
+            </div>
           </div>
         )}
       </main>
 
-      {/* OVERLAY MICROPHONE DICTATION MODAL */}
-      <SpeechRecordingModal
-        isOpen={isRecordingNote}
-        onClose={cancelRecording}
-        interimTranscript={interimTranscript}
-        finalTranscript={finalTranscript}
-        contextText={activeArticle && activeLines[currentLineIdx] ? activeLines[currentLineIdx].text : ''}
-        onSave={saveRecordedNote}
-        pageNumber={activeArticle && activeLines[currentLineIdx] ? activeLines[currentLineIdx].pageNumber : 1}
-        lineNumber={activeArticle && activeLines[currentLineIdx] ? activeLines[currentLineIdx].lineNumber : 1}
-        isSpeechListening={isSpeechListening}
-        onStartSpeech={startSpeechRecognition}
-        onStopSpeech={stopSpeechRecognition}
-        dictationLanguage={dictationLanguage}
-        onChangeDictationLanguage={changeDictationLanguage}
-        voices={voices}
-        settings={settings}
-        onClearTranscript={() => {
-          setInterimTranscript('');
-          setFinalTranscript('');
-        }}
-        articleTitle={activeArticle?.title || ''}
-      />
+      {/* Source-linked note editor */}
+      {activeArticle && noteAnchor && (
+        <NoteEditorModal
+          isOpen={isRecordingNote}
+          onClose={handleCloseNoteEditor}
+          sourceExcerpt={noteAnchor.selectedText}
+          pageNumber={noteAnchor.pageNumber}
+          isSelectionBased={!!pendingSelectionRef.current}
+          isSpeechListening={isSpeechListening}
+          interimTranscript={interimTranscript}
+          finalTranscript={finalTranscript}
+          onStartSpeech={startSpeechRecognition}
+          onStopSpeech={stopSpeechRecognition}
+          dictationLanguage={dictationLanguage}
+          onChangeDictationLanguage={changeDictationLanguage}
+          onClearTranscript={() => {
+            setInterimTranscript('');
+            setFinalTranscript('');
+          }}
+          onSave={handleSaveResearchNote}
+        />
+      )}
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  body,
+  tone,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  tone: 'indigo' | 'red' | 'emerald' | 'amber';
+}) {
+  const tones: Record<string, string> = {
+    indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400',
+    red: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400',
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+  };
+  return (
+    <div className="rounded-2xl border border-slate-200/50 bg-white p-5 shadow-3xs hover:shadow-2xs transition duration-150 dark:border-slate-800 dark:bg-slate-900">
+      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}>{icon}</div>
+      <h4 className="mt-3 font-sans font-bold text-xs text-slate-800 dark:text-white">{title}</h4>
+      <p className="mt-1 text-2xs text-slate-400 leading-relaxed">{body}</p>
     </div>
   );
 }

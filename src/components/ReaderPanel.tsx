@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { 
-  Play, Pause, Square, ChevronLeft, ChevronRight, 
+import {
+  Play, Pause, Square, ChevronLeft, ChevronRight,
   HelpCircle, Sparkles, BookOpen, AlertTriangle,
-  Save, LogOut, Check, Activity, RefreshCw
+  Save, LogOut, Check, Activity, RefreshCw, Quote
 } from 'lucide-react';
 import { Article, ParsedLine } from '../types';
 
@@ -16,7 +16,8 @@ interface ReaderPanelProps {
   onNext: () => void;
   onPrev: () => void;
   onSentenceClick: (index: number) => void;
-  onTriggerNote: () => void;
+  /** Opens the note editor. Pass the user's selected source text when present. */
+  onTriggerNote: (selectedText?: string) => void;
   isHandsFreeActive: boolean;
   isSavedInLibrary?: boolean;
   onSaveToLibrary?: () => void;
@@ -79,6 +80,21 @@ export default function ReaderPanel({
 }: ReaderPanelProps) {
   const [currentPageFilter, setCurrentPageFilter] = useState<number>(1);
   const [showOnlyActiveSnippet, setShowOnlyActiveSnippet] = useState<boolean>(true);
+  // Exact text the user has selected within the reading viewport (for source-linked notes).
+  const [selectedText, setSelectedText] = useState<string>('');
+
+  // Capture the current selection when the user finishes selecting text in the reader.
+  const captureSelection = () => {
+    const text = window.getSelection()?.toString().trim() ?? '';
+    setSelectedText(text);
+  };
+
+  const triggerNoteWithSelection = () => {
+    const sel = selectedText.trim();
+    onTriggerNote(sel || undefined);
+    setSelectedText('');
+    window.getSelection()?.removeAllRanges();
+  };
   const totalPages = article.pages.length;
 
   // Custom AI translation range selection states
@@ -433,7 +449,29 @@ export default function ReaderPanel({
       </div>
 
       {/* Main Page Panel Document viewport */}
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/20" id="document-reading-viewport">
+      <div
+        className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/20 relative"
+        id="document-reading-viewport"
+        onMouseUp={captureSelection}
+        onTouchEnd={captureSelection}
+      >
+        {/* Source-selection action bar — appears when the user highlights text */}
+        {selectedText && (
+          <div className="sticky top-0 z-10 mb-3 flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-white/95 px-3.5 py-2 shadow-md backdrop-blur dark:border-indigo-800 dark:bg-slate-900/95">
+            <div className="flex min-w-0 items-center gap-2">
+              <Quote className="h-3.5 w-3.5 flex-none text-indigo-600" />
+              <span className="truncate text-2xs italic text-slate-500 dark:text-slate-400">
+                &ldquo;{selectedText}&rdquo;
+              </span>
+            </div>
+            <button
+              onClick={triggerNoteWithSelection}
+              className="flex-none rounded-lg bg-indigo-600 px-3 py-1.5 text-2xs font-bold text-white transition hover:bg-indigo-700"
+            >
+              Bu Metne Not Ekle
+            </button>
+          </div>
+        )}
         <div className="mx-auto max-w-2xl min-h-[400px] rounded-xl border border-slate-200/60 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           
           {/* Virtual Top margin metadata */}
@@ -685,7 +723,7 @@ export default function ReaderPanel({
 
           {/* MASSIVE INTERRUPT TRIGGER NOTE BUTTON */}
           <button
-            onClick={onTriggerNote}
+            onClick={triggerNoteWithSelection}
             className="flex-1 flex max-w-full md:max-w-xs items-center justify-center space-x-2 py-3 px-5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm tracking-wide shadow-lg shadow-red-100 transition duration-240 cursor-pointer hover:scale-102 active:scale-98 animate-pulse dark:shadow-none"
             title="Okumayı durdurur ve sesli notunuzu dinler"
             id="trigger-voice-note-panel"

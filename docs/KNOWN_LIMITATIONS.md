@@ -25,6 +25,11 @@ Honest, user-facing limitations. Kept current as the MVP evolves. The product's 
 - **Figure/graph explanation** uses only the caption + surrounding extracted text, is labeled an AI interpretation, and is gated behind a feature flag. It never claims trends/values it cannot see.
 - **Translation** is AI-generated, marked as such, and never overwrites the original.
 
+## Notes & documents
+- Every uploaded or sample document is **auto-saved to the local library**; the last-opened document is restored on reload.
+- Source anchoring currently uses the selected text + page + global segment index (plus surrounding context). Character-level offsets and explicit segment IDs are not yet stored; notes still resolve to the right passage on jump-to-source.
+- **Translation is in-memory for the session.** The stored base document remains the original language; reopening a document from the library shows the original until re-translated. (Persisted translation is planned.)
+
 ## Storage / privacy
 - Data is stored **locally in the browser (IndexedDB)**. Clearing browser data deletes it unless exported. No cloud sync in the MVP.
 - IndexedDB has quota limits; very large documents may fail to store, with a clear error.

@@ -33,7 +33,11 @@ export const documentRepository = {
     return segments.sort((a, b) => a.globalIndex - b.globalIndex);
   },
 
-  /** Persist a freshly-parsed document together with its pages and segments. */
+  /**
+   * Persist a freshly-parsed document together with its pages and segments.
+   * Existing pages/segments for the document are replaced (not accumulated), so
+   * re-saving (e.g. after translation or re-parse) stays consistent.
+   */
   async save(
     document: AcademicDocument,
     pages: DocumentPage[],
@@ -41,6 +45,8 @@ export const documentRepository = {
   ): Promise<void> {
     const db = getDb();
     await db.transaction('rw', db.documents, db.pages, db.segments, async () => {
+      await db.pages.where('documentId').equals(document.id).delete();
+      await db.segments.where('documentId').equals(document.id).delete();
       await db.documents.put(document);
       if (pages.length) await db.pages.bulkPut(pages);
       if (segments.length) await db.segments.bulkPut(segments);

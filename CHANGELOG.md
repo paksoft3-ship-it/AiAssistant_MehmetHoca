@@ -4,6 +4,19 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Phase 2 — Source-linked note workflow (2026-06-21)
+- **Switched persistence to IndexedDB.** `App.tsx` no longer reads/writes the prototype localStorage document/note keys; documents and notes now live in IndexedDB through the repositories. Every uploaded/sample document is auto-saved to the library; the last-opened document is restored on reload (`eidosus_last_active_doc` preference).
+- **Replaced the page/line note model with the source-aware `ResearchNote` + `SourceAnchor` model.** Notes now store the exact source excerpt, page, global index, surrounding context, a preserved `rawTranscript`, a separate `finalNote`, tags, and origin (voice/typed/discussion).
+- **Added exact text selection in the reader** (`ReaderPanel`): selecting text shows a "Bu Metne Not Ekle" action bar; the note anchors to that selection. With no selection, the note anchors to the active spoken segment.
+- **New source-linked note editor** (`NoteEditorModal`): source excerpt card, dictation + typed raw transcript (raw is never overwritten), final academic note, tags, and an honest STT privacy note. Saving works fully without AI. Includes an "Akademik Olarak Düzenle" affordance that stays hidden until Phase 3 wires the handler.
+- **New research notes panel** (`ResearchNotesPanel`): source excerpt, final note, tags, origin badge, jump-to-source, inline edit, delete-with-confirm, play-aloud, search, tag filter, and sort (source position / created / updated).
+- **New feature modules**: `features/notes` (services `sourceAnchor`, `noteFactory`, `noteQueries`; hook `useResearchNotes`) and `features/documents` (`documentMapper`, `documentService`; hook `useLibrary`).
+- **"Verilerimi Sil"** data-reset action (`db/reset.ts`) on the dashboard, with confirmation, plus a local-first privacy note.
+- Removed `.doc` from the upload `accept` list (parser already rejects it).
+- **Tests:** +14 (now 41 total) — source anchor building, note factory/tags, note queries (search/sort/filter/collect), document mapper round-trip, and a documentService+notes IndexedDB integration test (save → list → open → attach note → cascade delete; reading-position round-trip).
+- Verified: `npm run lint` (pass), `npm test` (41 pass), `npm run build` (pass), and a production-server smoke test (HTTP 200, app served).
+- Known limitation: the translated article variant is in-memory for the session only; the stored base document remains the original (translation persistence is a Phase 6 concern).
+
 ### Phase 1 — Architecture & persistence (2026-06-21)
 - **Removed the CDN dependency for core parsers.** PDF.js (`pdfjs-dist`) and Mammoth (`mammoth`) are now npm dependencies bundled by Vite; the PDF worker is served as a local hashed asset (`?url` import) instead of a hardcoded cdnjs URL. Deleted the `<script>` CDN tags from `index.html`. Behavior preserved.
 - **Added local-first IndexedDB persistence (Dexie).** New `src/db/database.ts` (`documents`, `pages`, `segments`, `notes`, `discussions`, `exports`, `fileBlobs`) with the repository pattern (`src/db/repositories/*`) so the UI never touches Dexie directly and a cloud repo can be added later.
