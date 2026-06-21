@@ -4,6 +4,16 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Phase 3 — AI note cleaning (2026-06-21)
+- **New endpoint `POST /api/ai/clean-note`** that turns a raw transcript into a structured academic note, returning **Zod-validated** `{ cleanedNote, suggestedTags, warnings }`. The prompt enforces the trust rules (preserve meaning, improve only grammar/clarity, never invent evidence/citations/certainty, warn instead of hallucinating).
+- **Modularized the AI server** into `server/`: `config.ts` (env-driven model/port/limits; no hardcoded model name), `services/geminiClient.ts` (shared client + retry **+ request timeout**), `services/prompts/cleanNote.ts`, `services/cleanNoteService.ts` (testable core, independent of Express/Gemini), `schemas/cleanNote.ts` (Zod), `middleware/rateLimit.ts`, and `routes/aiNotes.ts`.
+- **Hardened the API**: JSON body-size limit (`express.json({ limit })`), rate limiting on `/api/ai` and `/api/gemini` (30 req/min/IP, configurable), request timeouts, consistent error codes (`invalid_request` 400, `ai_unavailable` 503, `ai_error` 502), and **privacy-safe logging** (sizes only, never document/note text).
+- **`server.ts` now uses the shared config/client** and reads `GEMINI_MODEL` from config across all endpoints (removed the hardcoded `gemini-3.5-flash` in 4 places).
+- **Removed the fabricated graph-trend fallback** (trust fix, ahead of Phase 6): `summarize-graph` now returns an honest "cannot see the figure" message and the prompt forbids inventing trends/percentages (CLAUDE.md §14.6).
+- **Wired the editor's "Akademik Olarak Düzenle"**: `NoteEditorModal.onRequestClean` calls the endpoint via a centralized `lib/apiClient.ts` and `features/notes/services/aiNoteCleaning.ts`. The cleaned note is stored separately (`cleanedAcademicNote`, `aiCleaningStatus`), the **raw transcript is never overwritten**, suggested tags pre-fill, warnings surface, and AI failure degrades gracefully (the note still saves). The affordance is hidden when the `aiNoteCleaning`/`aiFeatures` flags are off. Notes show a "Düzenlendi" badge when AI-cleaned.
+- **Tests:** +8 (now 49 total) — request-schema validation and the clean-note service (unavailable, success, code-fence JSON, non-JSON, empty note, model failure) via an injected `generate`.
+- Verified: `npm run lint` (pass), `npm test` (49 pass), `npm run build` (pass), and live endpoint smoke tests (503 `ai_unavailable` with no key, 400 on invalid body).
+
 ### Phase 2 — Source-linked note workflow (2026-06-21)
 - **Switched persistence to IndexedDB.** `App.tsx` no longer reads/writes the prototype localStorage document/note keys; documents and notes now live in IndexedDB through the repositories. Every uploaded/sample document is auto-saved to the library; the last-opened document is restored on reload (`eidosus_last_active_doc` preference).
 - **Replaced the page/line note model with the source-aware `ResearchNote` + `SourceAnchor` model.** Notes now store the exact source excerpt, page, global index, surrounding context, a preserved `rawTranscript`, a separate `finalNote`, tags, and origin (voice/typed/discussion).

@@ -15,8 +15,15 @@ const DICTATION_LANGS: { code: string; label: string }[] = [
 export interface NoteEditorSaveData {
   rawTranscript: string;
   finalNote: string;
+  cleanedAcademicNote?: string;
   tags: string[];
   origin: NoteOrigin;
+}
+
+export interface CleanNoteResponse {
+  cleanedNote: string;
+  suggestedTags?: string[];
+  warnings?: string[];
 }
 
 export interface NoteEditorModalProps {
@@ -41,7 +48,7 @@ export interface NoteEditorModalProps {
    * Optional AI cleaning handler (Phase 3). When omitted, the AI cleaning
    * affordance is hidden so the editor works fully without AI.
    */
-  onRequestClean?: (raw: string, excerpt: string) => Promise<{ cleanedNote: string; suggestedTags?: string[] }>;
+  onRequestClean?: (raw: string, excerpt: string) => Promise<CleanNoteResponse>;
 }
 
 /**
@@ -112,6 +119,9 @@ export default function NoteEditorModal({
       if (result.suggestedTags && result.suggestedTags.length > 0) {
         setTagsInput((prev) => (prev ? prev : result.suggestedTags!.join(', ')));
       }
+      if (result.warnings && result.warnings.length > 0) {
+        setCleanWarning(result.warnings.join(' '));
+      }
     } catch (err) {
       setCleanWarning(
         'Akademik düzenleme şu anda yapılamadı. Notunuzu olduğu gibi kaydedebilirsiniz.',
@@ -129,6 +139,7 @@ export default function NoteEditorModal({
     onSave({
       rawTranscript: raw,
       finalNote: final,
+      cleanedAcademicNote: cleanedNote ?? undefined,
       tags: parseTagInput(tagsInput),
       origin: usedMicRef.current ? 'voice' : 'typed',
     });

@@ -13,8 +13,10 @@ import { useLibrary } from './features/documents/hooks/useLibrary';
 import { documentService } from './features/documents/services/documentService';
 import { useResearchNotes } from './features/notes/hooks/useResearchNotes';
 import { buildSourceAnchor } from './features/notes/services/sourceAnchor';
+import { requestCleanNote } from './features/notes/services/aiNoteCleaning';
 import { resetAllData, PREF_KEYS } from './db/reset';
 import { PRODUCT } from './config/product';
+import { featureFlags } from './config/featureFlags';
 
 // Subcomponents
 import Navbar from './components/Navbar';
@@ -420,11 +422,32 @@ export default function App() {
       origin: data.origin,
       rawTranscript: data.rawTranscript,
       finalNote: data.finalNote,
+      cleanedAcademicNote: data.cleanedAcademicNote,
       tags: data.tags,
     });
     pendingSelectionRef.current = null;
     cancelRecording();
   };
+
+  // AI note cleaning (Phase 3). Gated by feature flags; the editor hides the
+  // affordance entirely when this handler is not provided.
+  const aiCleaningEnabled = featureFlags.aiFeatures && featureFlags.aiNoteCleaning;
+  const handleRequestClean = useCallback(
+    async (raw: string, excerpt: string) => {
+      const result = await requestCleanNote({
+        documentTitle: activeArticle?.title,
+        sourceExcerpt: excerpt,
+        rawTranscript: raw,
+        language: activeLanguage,
+      });
+      return {
+        cleanedNote: result.cleanedNote,
+        suggestedTags: result.suggestedTags,
+        warnings: result.warnings,
+      };
+    },
+    [activeArticle?.title, activeLanguage],
+  );
 
   const handleCloseNoteEditor = () => {
     pendingSelectionRef.current = null;
@@ -739,6 +762,7 @@ export default function App() {
             setFinalTranscript('');
           }}
           onSave={handleSaveResearchNote}
+          onRequestClean={aiCleaningEnabled ? handleRequestClean : undefined}
         />
       )}
     </div>

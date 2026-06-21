@@ -8,6 +8,7 @@ export interface AddNoteInput {
   origin: NoteOrigin;
   rawTranscript: string;
   finalNote?: string;
+  cleanedAcademicNote?: string;
   tags?: string[];
 }
 
@@ -62,6 +63,7 @@ export function useResearchNotes(documentId: string | null | undefined): UseRese
         origin: input.origin,
         rawTranscript: input.rawTranscript,
         finalNote: input.finalNote,
+        cleanedAcademicNote: input.cleanedAcademicNote,
         tags: input.tags,
       });
       await noteRepository.create(note);

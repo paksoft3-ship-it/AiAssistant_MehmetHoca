@@ -10,6 +10,8 @@ export interface NewNoteInput {
   rawTranscript: string;
   /** The user's final, edited note. Defaults to the raw transcript when omitted. */
   finalNote?: string;
+  /** Optional AI-cleaned note (Phase 3). Stored separately from raw and final. */
+  cleanedAcademicNote?: string;
   tags?: string[];
   /** Injectable timestamp for deterministic tests. */
   now?: string;
@@ -20,6 +22,7 @@ export function createResearchNote(input: NewNoteInput): ResearchNote {
   const now = input.now ?? new Date().toISOString();
   const raw = input.rawTranscript.trim();
   const final = (input.finalNote ?? input.rawTranscript).trim();
+  const cleaned = input.cleanedAcademicNote?.trim() || undefined;
   return {
     id: newId(),
     documentId: input.documentId,
@@ -27,10 +30,10 @@ export function createResearchNote(input: NewNoteInput): ResearchNote {
     sourceAnchor: input.sourceAnchor,
     origin: input.origin,
     rawTranscript: raw,
-    cleanedAcademicNote: undefined,
+    cleanedAcademicNote: cleaned,
     finalNote: final,
     tags: normalizeTags(input.tags ?? []),
-    aiCleaningStatus: 'not-requested',
+    aiCleaningStatus: cleaned ? 'completed' : 'not-requested',
     createdAt: now,
     updatedAt: now,
   };

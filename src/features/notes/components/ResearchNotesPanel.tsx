@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Search, Edit2, Trash2, Check, X, Volume2, ArrowUpRight, Tag, Mic, Keyboard, MessageSquare,
+  Search, Edit2, Trash2, Check, X, Volume2, ArrowUpRight, Tag, Mic, Keyboard, MessageSquare, Wand2,
 } from 'lucide-react';
 import type { ResearchNote, SourceAnchor } from '../../../types/domain';
 import { searchNotes, sortNotes, filterByTag, collectTags, type NoteSortKey } from '../services/noteQueries';
@@ -165,6 +165,15 @@ export default function ResearchNotesPanel({
                       <Origin.icon className="h-2.5 w-2.5" />
                       {Origin.label}
                     </span>
+                    {note.aiCleaningStatus === 'completed' && (
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600 dark:bg-violet-950/30 dark:text-violet-300"
+                        title="Yapay zeka ile akademik olarak düzenlendi"
+                      >
+                        <Wand2 className="h-2.5 w-2.5" />
+                        Düzenlendi
+                      </span>
+                    )}
                   </div>
                 </div>
 

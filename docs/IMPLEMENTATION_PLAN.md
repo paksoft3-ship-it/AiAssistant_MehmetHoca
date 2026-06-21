@@ -31,9 +31,12 @@ _Updated at the end of every phase. Source of truth for sequencing._
 - ✅ Phase 1 carry-over: documents + notes wired onto IndexedDB repositories (`useLibrary`, `useResearchNotes`); "Verilerimi Sil" reset.
 - Note: segment offsets (`startOffset`/`endOffset`) and `segmentId` resolution are not yet populated (globalIndex + selectedText carry the anchor); cleaned-note AI button lands in Phase 3; translation persistence deferred to Phase 6.
 
-## Phase 3 — AI note cleaning ⏳
-- `POST /api/ai/clean-note` with Zod-validated structured JSON `{cleanedNote, suggestedTags, warnings}`.
-- Cleaned-note UI; raw transcript never overwritten; graceful fallback when AI unavailable.
+## Phase 3 — AI note cleaning ✅
+- ✅ `POST /api/ai/clean-note` with Zod-validated `{cleanedNote, suggestedTags, warnings}`; testable service core.
+- ✅ Modular `server/` (config, geminiClient, prompts, schemas, middleware, routes); model from config.
+- ✅ Hardening: body-size limit, rate limiting, timeouts, consistent error codes, privacy-safe logging.
+- ✅ Cleaned-note UI wired (`onRequestClean`); raw transcript never overwritten; graceful fallback; flag-gated.
+- ✅ Trust fix (early): removed fabricated graph-trend fallback (honest message instead).
 
 ## Phase 4 — Export ⏳
 - Markdown + DOCX (`docx` npm) + improved TXT; export options; sanitized filenames; `ExportRecord`; export tests.
