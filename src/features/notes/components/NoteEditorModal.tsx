@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { NoteOrigin } from '../../../types/domain';
 import { parseTagInput } from '../services/noteFactory';
 import { Icon } from '../../../components/ui/Icon';
+import { Portal } from '../../../components/ui/Portal';
 import { isSpeechRecognitionSupported } from '../../speech/services/capabilities';
 
 const DICTATION_LANGS: { code: string; label: string }[] = [
@@ -131,7 +132,8 @@ export default function NoteEditorModal({
     'w-full resize-none rounded-xl border border-border bg-surface p-md font-body-ui text-body-ui text-text transition-shadow focus:border-focus-ring focus:ring-2 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-100';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-on-surface/20 p-md backdrop-blur-md sm:p-lg">
+    <Portal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-on-surface/20 p-md backdrop-blur-md sm:p-lg">
       <div className="relative my-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-surface px-lg py-md dark:bg-slate-900">
@@ -288,5 +290,6 @@ export default function NoteEditorModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../../../components/ui/Icon';
+import { Portal } from '../../../components/ui/Portal';
 import type { ResearchNote } from '../../../types/domain';
 import {
   DEFAULT_EXPORT_OPTIONS,
@@ -93,7 +94,8 @@ export default function ExportDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-md backdrop-blur-sm sm:p-lg">
+    <Portal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 p-md backdrop-blur-sm sm:p-lg">
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[24px] border border-border bg-surface shadow-lg dark:bg-slate-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border bg-surface px-lg py-md dark:bg-slate-900">
@@ -211,5 +213,6 @@ export default function ExportDialog({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
