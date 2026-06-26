@@ -453,6 +453,8 @@ export default function App() {
     play,
     pause,
     stop,
+    speakText: speakTextAloud,
+    stopSpeaking,
     nextSentence,
     prevSentence,
     setLineIndex,
@@ -896,6 +898,8 @@ export default function App() {
           onSave={handleSaveResearchNote}
           onRequestClean={aiCleaningEnabled ? handleRequestClean : undefined}
           onDiscuss={discussionEnabled ? handleDiscuss : undefined}
+          onSpeakReply={discussionEnabled ? (text, onEnd) => speakTextAloud(text, { onEnd, onError: onEnd }) : undefined}
+          onStopReply={stopSpeaking}
           knownTags={knownTags}
         />
       )}

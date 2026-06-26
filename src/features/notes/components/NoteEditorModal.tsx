@@ -5,6 +5,20 @@ import { suggestTags } from '../services/tagCatalog';
 import { Icon } from '../../../components/ui/Icon';
 import { Portal } from '../../../components/ui/Portal';
 import { isSpeechRecognitionSupported } from '../../speech/services/capabilities';
+import {
+  useVoiceConversation,
+  isVoiceConversationSupported,
+} from '../../discussion/hooks/useVoiceConversation';
+
+/** Maps the app's short dictation codes to BCP-47 recognition locales. */
+const RECOGNITION_LOCALE: Record<string, string> = {
+  tr: 'tr-TR',
+  en: 'en-US',
+  de: 'de-DE',
+  fr: 'fr-FR',
+  es: 'es-ES',
+  it: 'it-IT',
+};
 
 const DICTATION_LANGS: { code: string; label: string }[] = [
   { code: 'tr', label: 'TR' },
@@ -54,6 +68,10 @@ export interface NoteEditorModalProps {
     messages: { role: 'user' | 'assistant'; content: string }[],
     contextText: string,
   ) => Promise<{ text: string; isFallback: boolean }>;
+  /** Speaks the AI reply aloud with the user's chosen (natural) voice. */
+  onSpeakReply?: (text: string, onEnd: () => void) => void;
+  /** Cancels any in-flight AI speech. */
+  onStopReply?: () => void;
   /** Tags already used across the user's notes, for autocomplete/quick-add. */
   knownTags?: string[];
 }
@@ -81,6 +99,8 @@ export default function NoteEditorModal({
   onSave,
   onRequestClean,
   onDiscuss,
+  onSpeakReply,
+  onStopReply,
   knownTags = [],
 }: NoteEditorModalProps) {
   const [rawText, setRawText] = useState('');
@@ -97,6 +117,29 @@ export default function NoteEditorModal({
   const usedMicRef = useRef(false);
   const recognitionSupported = isSpeechRecognitionSupported();
 
+  // Mirror of the chat thread so the voice loop can build request history
+  // without waiting on React state updates.
+  const chatRef = useRef<ChatTurn[]>([]);
+  chatRef.current = chat;
+
+  const appendTurn = (turn: ChatTurn) => setChat((prev) => [...prev, turn]);
+
+  const voiceSupported = isVoiceConversationSupported();
+  const voice = useVoiceConversation({
+    locale: RECOGNITION_LOCALE[dictationLanguage] || 'tr-TR',
+    onAsk: async (said) => {
+      const history = [
+        ...chatRef.current.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: said },
+      ];
+      if (!onDiscuss) return { text: '', isFallback: true };
+      return onDiscuss(history, sourceExcerpt);
+    },
+    onSpeak: (text, onEnd) => (onSpeakReply ? onSpeakReply(text, onEnd) : onEnd()),
+    onStopSpeak: () => onStopReply?.(),
+    onTurn: appendTurn,
+  });
+
   useEffect(() => {
     if (isOpen) {
       setRawText('');
@@ -112,6 +155,11 @@ export default function NoteEditorModal({
       usedMicRef.current = false;
     }
   }, [isOpen]);
+
+  // Always end the hands-free voice loop when the editor closes.
+  useEffect(() => {
+    if (!isOpen) voice.stop();
+  }, [isOpen, voice.stop]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -329,6 +377,68 @@ export default function NoteEditorModal({
                     <Icon name="info" className="text-[14px]" />
                     Yanıtlar yalnızca yukarıdaki kaynak pasajına dayanan birer yorumdur; tüm makalenin görüşü değildir.
                   </p>
+
+                  {/* Hands-free voice conversation (Siri/ChatGPT-style) */}
+                  {onSpeakReply && voiceSupported && (
+                    <div className="flex flex-col gap-sm rounded-lg border border-border bg-surface p-md dark:bg-slate-950">
+                      <div className="flex items-center justify-between gap-sm">
+                        <span className="flex items-center gap-xs font-small text-small font-medium text-text">
+                          <Icon name="graphic_eq" className="text-[18px] text-primary" />
+                          Sesli sohbet — konuşarak tartışın
+                        </span>
+                        <button
+                          onClick={() => (voice.isActive ? voice.stop() : voice.start())}
+                          className={`flex flex-none items-center gap-xs rounded-full px-md py-sm font-small text-small font-medium transition-colors ${
+                            voice.isActive
+                              ? 'bg-danger text-white hover:bg-danger/90'
+                              : 'bg-primary text-on-primary hover:bg-primary-hover'
+                          }`}
+                          aria-pressed={voice.isActive}
+                        >
+                          <Icon name={voice.isActive ? 'stop' : 'mic'} className="text-[18px]" />
+                          {voice.isActive ? 'Bitir' : 'Sesli Konuş'}
+                        </button>
+                      </div>
+
+                      {voice.isActive && (
+                        <div className="flex items-center gap-sm rounded-lg bg-surface-muted px-md py-sm">
+                          {voice.state === 'listening' && (
+                            <>
+                              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-danger" />
+                              <span className="font-small text-small text-text">
+                                Dinliyorum… {voice.interim && <span className="text-text-muted">“{voice.interim}”</span>}
+                              </span>
+                            </>
+                          )}
+                          {voice.state === 'thinking' && (
+                            <>
+                              <Icon name="progress_activity" className="animate-spin text-[18px] text-primary" />
+                              <span className="font-small text-small text-text">Düşünüyorum…</span>
+                            </>
+                          )}
+                          {voice.state === 'speaking' && (
+                            <>
+                              <Icon name="volume_up" className="text-[18px] text-primary" />
+                              <span className="font-small text-small text-text">Yanıtlıyorum… (bitince tekrar dinlerim)</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {voice.error && (
+                        <p className="flex items-start gap-xs font-label-mono text-label-mono text-danger">
+                          <Icon name="error" className="text-[14px]" />
+                          {voice.error}
+                        </p>
+                      )}
+
+                      {!voice.isActive && !voice.error && (
+                        <p className="font-label-mono text-label-mono text-outline">
+                          “Sesli Konuş”a dokunun, konuşun ve durun; yanıtı sesli alır, sohbete devam edersiniz. Veya aşağıya yazabilirsiniz.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {chat.length > 0 && (
                     <div className="flex max-h-56 flex-col gap-sm overflow-y-auto rounded-lg border border-border bg-surface p-md dark:bg-slate-950">

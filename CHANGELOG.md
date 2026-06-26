@@ -4,6 +4,10 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Hands-free AI voice conversation (2026-06-27)
+- **"Sesli Konuş" in the note discussion** (spec §10, §14.4): the "Yapay zeka ile tartış" feature is now a hands-free, back-and-forth voice conversation (ChatGPT voice / Siri style) — you speak, the assistant replies *out loud* with the chosen natural voice, then listening resumes automatically for the next turn. New `useVoiceConversation` hook owns its own SpeechRecognition with a strict listening→thinking→speaking→listening state machine; the mic is closed while the assistant talks to avoid TTS feedback. Live status (Dinliyorum / Düşünüyorum / Yanıtlıyorum) + interim transcript shown. Typing still works as a fallback.
+- **Reusable natural speech**: added `speakText`/`stopSpeaking` to the speech engine so arbitrary text (AI replies, read-aloud) uses the selected neural/device voice, not just document lines.
+
 ### Fixes & natural voices (2026-06-26)
 - **Modal width bug (all dialogs)**: in Tailwind v4 the custom `--spacing-{sm,md,lg,xl}` design tokens collided with the t-shirt size scale, so `max-w-xl` resolved to **32px** and every dialog (Accessibility, Assistant settings, History, Privacy, "Nasıl Çalışır?", note editor, …) opened as a thin vertical strip. Replaced the 11 `max-w-*` usages with arbitrary rem values (`max-w-[28rem]`, `max-w-[36rem]`, …) and documented the collision in `src/index.css`. This also fixes the "Nasıl çalıştığını gör" button appearing broken (the guide was opening invisibly).
 - **Natural neural voices** (spec §9): added a key-less `/api/tts` proxy (Microsoft Edge Read-Aloud via `msedge-tts`) offering real Turkish neural voices (Emel/Ahmet) and others, replacing the single robotic device voice. Voice picker groups "Doğal Sesler (çevrimiçi)" vs "Cihaz Sesleri (çevrimdışı)"; a natural voice is the default for the document language. Honest about the network round-trip (text sent to Microsoft); device voices remain a one-click offline fallback. Gated by the `naturalVoices` flag, rate-limited (300/min) separately from AI endpoints.

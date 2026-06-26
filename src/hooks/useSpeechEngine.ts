@@ -673,6 +673,65 @@ export function useSpeechEngine(
     window.speechSynthesis.speak(utterance);
   }, [lines, settings, voices, onLineChange, articleLanguage, handleGraphEncounter]);
 
+  /**
+   * Speak an arbitrary piece of text once (not a document line) using the
+   * currently-selected voice — natural neural voice when chosen, otherwise the
+   * device voice. Used by read-aloud helpers and the hands-free AI voice chat.
+   */
+  const speakText = useCallback(
+    (text: string, handlers?: { onEnd?: () => void; onError?: () => void }) => {
+      const onEnd = handlers?.onEnd ?? (() => {});
+      const onError = handlers?.onError ?? (() => {});
+      if (typeof window === 'undefined') {
+        onEnd();
+        return;
+      }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      edgePlayerRef.current?.cancel();
+      if (!text.trim()) {
+        onEnd();
+        return;
+      }
+
+      // Natural neural voice path.
+      if (isEdgeVoiceURI(settings.voiceURI)) {
+        if (!edgePlayerRef.current) edgePlayerRef.current = new EdgeTtsPlayer();
+        const voiceLang =
+          voices.find((v) => v.voiceURI === settings.voiceURI)?.lang || articleLanguage || 'tr-TR';
+        edgePlayerRef.current.play(text, settings.voiceURI, settings.rate, settings.pitch, voiceLang, {
+          onEnd,
+          onError: () => onError(),
+        });
+        return;
+      }
+
+      // Device Web Speech path.
+      if (!window.speechSynthesis) {
+        onEnd();
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(optimizeTextForTTS(text, articleLanguage || 'tr'));
+      const resolved = resolvePhysicalVoiceAndParams(settings.voiceURI, settings.rate, settings.pitch, voices);
+      if (resolved.voice) {
+        utterance.voice = resolved.voice;
+        utterance.lang = resolved.voice.lang;
+      }
+      utterance.rate = resolved.rate;
+      utterance.pitch = resolved.pitch;
+      utterance.onend = () => onEnd();
+      utterance.onerror = (e) => (e.error === 'interrupted' ? onEnd() : onError());
+      utteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    },
+    [settings, voices, articleLanguage],
+  );
+
+  /** Stop any in-flight speech (both backends) without touching playback state. */
+  const stopSpeaking = useCallback(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    edgePlayerRef.current?.cancel();
+  }, []);
+
   // Play controls
   const play = useCallback(() => {
     if (lines.length === 0) return;
@@ -1063,6 +1122,8 @@ export function useSpeechEngine(
     play,
     pause,
     stop,
+    speakText,
+    stopSpeaking,
     nextSentence,
     prevSentence,
     setLineIndex,
