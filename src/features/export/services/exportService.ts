@@ -5,13 +5,19 @@ import type { ExportDocumentMeta, ExportOptions } from './exportTypes';
 import { buildExportModel } from './exportModel';
 import { renderMarkdown } from './markdownExport';
 import { renderTxt } from './txtExport';
+import { renderCsv } from './csvExport';
 import { buildExportFilename } from './filename';
 
 const MIME: Record<ExportOptions['format'], string> = {
   markdown: 'text/markdown;charset=utf-8',
   txt: 'text/plain;charset=utf-8',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  csv: 'text/csv;charset=utf-8',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
+
+// Excel needs a UTF-8 BOM to render Turkish characters in CSV correctly.
+const UTF8_BOM = '﻿';
 
 /** Trigger a browser download for a Blob. */
 function downloadBlob(blob: Blob, filename: string): void {
@@ -51,6 +57,12 @@ export async function exportNotes(
     blob = new Blob([renderMarkdown(model, options)], { type: MIME.markdown });
   } else if (options.format === 'txt') {
     blob = new Blob([renderTxt(model, options)], { type: MIME.txt });
+  } else if (options.format === 'csv') {
+    blob = new Blob([UTF8_BOM + renderCsv(model, options)], { type: MIME.csv });
+  } else if (options.format === 'xlsx') {
+    // Lazy-load JSZip + the OOXML writer only when XLSX is requested.
+    const { renderXlsxBlob } = await import('./xlsxExport');
+    blob = await renderXlsxBlob(model, options);
   } else {
     // Lazy-load the heavy `docx` dependency only when a DOCX export is requested.
     const { buildDocxDocument, docxToBlob } = await import('./docxExport');

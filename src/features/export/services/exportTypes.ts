@@ -1,6 +1,9 @@
 import type { ResearchNote } from '../../../types/domain';
 
-export type ExportFormat = 'markdown' | 'docx' | 'txt';
+export type ExportFormat = 'markdown' | 'docx' | 'txt' | 'csv' | 'xlsx';
+
+/** Formats whose output is a flat table (one row per note). */
+export const TABULAR_FORMATS: ExportFormat[] = ['csv', 'xlsx'];
 
 export interface ExportOptions {
   format: ExportFormat;

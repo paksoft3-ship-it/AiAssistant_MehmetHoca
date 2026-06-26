@@ -22,6 +22,8 @@ const FORMATS: { value: ExportFormat; label: string; sub: string; icon: string }
   { value: 'markdown', label: 'Markdown', sub: 'Obsidian & Notion için ideal', icon: 'markdown' },
   { value: 'docx', label: 'Word (DOCX)', sub: 'Akademik makale taslakları', icon: 'description' },
   { value: 'txt', label: 'Düz Metin (TXT)', sub: 'Sadece ham metin', icon: 'article' },
+  { value: 'csv', label: 'CSV', sub: 'Tablo / veri analizi', icon: 'table_rows' },
+  { value: 'xlsx', label: 'Excel (XLSX)', sub: 'Hesap tablosu', icon: 'table_chart' },
 ];
 
 function Check({

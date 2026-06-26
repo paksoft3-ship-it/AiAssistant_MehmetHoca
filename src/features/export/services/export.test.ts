@@ -6,6 +6,9 @@ import { buildExportModel } from './exportModel';
 import { renderMarkdown } from './markdownExport';
 import { renderTxt } from './txtExport';
 import { buildDocxDocument } from './docxExport';
+import { buildTable } from './tabularExport';
+import { renderCsv } from './csvExport';
+import { renderXlsxBytes } from './xlsxExport';
 import { DEFAULT_EXPORT_OPTIONS, type ExportOptions } from './exportTypes';
 
 const NOW = '2026-06-21T08:30:00.000Z';
@@ -89,6 +92,58 @@ describe('renderTxt', () => {
     expect(txt).toContain('ARAŞTIRMA NOTLARI');
     expect(txt).toContain('NOT 1 [Sayfa 1]');
     expect(txt).toContain('Nihai not: nihai not');
+  });
+});
+
+describe('buildTable', () => {
+  it('builds a header row plus one row per note, honouring toggles', () => {
+    const model = buildExportModel(META, [note({ id: 'a' })], opts(), NOW);
+    const table = buildTable(model, opts({ includeRawTranscript: true }));
+    expect(table.headers).toContain('Nihai Not');
+    expect(table.headers).toContain('Ham Döküm');
+    expect(table.headers).toContain('Kaynak Pasaj');
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0][0]).toBe('1'); // No
+    expect(table.rows[0]).toContain('nihai not');
+  });
+
+  it('drops columns when their toggle is off', () => {
+    const model = buildExportModel(META, [note({ id: 'a' })], opts(), NOW);
+    const table = buildTable(model, opts({ includeRawTranscript: false, includeTags: false }));
+    expect(table.headers).not.toContain('Ham Döküm');
+    expect(table.headers).not.toContain('Etiketler');
+  });
+});
+
+describe('renderCsv', () => {
+  it('quotes fields with commas/quotes/newlines and uses CRLF', () => {
+    const model = buildExportModel(META, [
+      note({ id: 'a', finalNote: 'iki, virgül', sourceAnchor: { documentId: 'd1', pageNumber: 1, globalIndex: 0, selectedText: 'tırnak "x"' } }),
+    ], opts(), NOW);
+    const csv = renderCsv(model, opts());
+    expect(csv.split('\r\n').length).toBeGreaterThanOrEqual(2);
+    expect(csv).toContain('"iki, virgül"');
+    expect(csv).toContain('"tırnak ""x"""');
+  });
+});
+
+describe('renderXlsxBytes', () => {
+  it('produces a valid (PK-headed) zip workbook', async () => {
+    const model = buildExportModel(META, [note({ id: 'a' })], opts(), NOW);
+    const bytes = await renderXlsxBytes(model, opts());
+    expect(bytes.length).toBeGreaterThan(0);
+    expect(bytes[0]).toBe(0x50); // 'P'
+    expect(bytes[1]).toBe(0x4b); // 'K'
+  });
+
+  it('round-trips through JSZip to a worksheet with the note content', async () => {
+    const model = buildExportModel(META, [note({ id: 'a', finalNote: 'özgün not' })], opts(), NOW);
+    const bytes = await renderXlsxBytes(model, opts());
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(bytes);
+    const sheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
+    expect(sheet).toContain('özgün not');
+    expect(sheet).toContain('Nihai Not');
   });
 });
 

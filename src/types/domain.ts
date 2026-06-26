@@ -56,7 +56,12 @@ export interface AcademicDocument {
   parseStatus: ParseStatus;
   parseError?: string;
   originalFileBlobId?: string;
-  source: 'upload' | 'sample';
+  source: 'upload' | 'sample' | 'url';
+  /** Original URL + domain when source === 'url' (Beta spec §11). */
+  sourceUrl?: string;
+  sourceDomain?: string;
+  /** Optional project grouping (Beta spec §23). */
+  projectId?: string;
 }
 
 export interface DocumentPage {
@@ -131,7 +136,7 @@ export interface AcademicDiscussion {
 export interface ExportRecord {
   id: string;
   documentId: string;
-  format: 'markdown' | 'docx' | 'pdf' | 'txt';
+  format: 'markdown' | 'docx' | 'pdf' | 'txt' | 'csv' | 'xlsx';
   noteIds: string[];
   createdAt: string;
 }
@@ -143,4 +148,35 @@ export interface FileBlobRecord {
   fileName: string;
   mimeType: string;
   blob: Blob;
+}
+
+/** Research project for grouping documents/notes (Beta spec §23). Optional. */
+export interface ResearchProject {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Activity history event types (Beta spec §22). */
+export type HistoryEventType =
+  | 'document_uploaded'
+  | 'url_imported'
+  | 'document_opened'
+  | 'note_created'
+  | 'note_deleted'
+  | 'export_created'
+  | 'project_created';
+
+export interface HistoryEvent {
+  id: string;
+  type: HistoryEventType;
+  documentId?: string;
+  projectId?: string;
+  noteId?: string;
+  /** Small, non-sensitive labels only (e.g. document title, format). */
+  metadata?: Record<string, string | number>;
+  createdAt: string;
 }
