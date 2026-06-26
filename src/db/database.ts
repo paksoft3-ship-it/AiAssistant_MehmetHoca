@@ -7,6 +7,8 @@ import type {
   AcademicDiscussion,
   ExportRecord,
   FileBlobRecord,
+  ResearchProject,
+  HistoryEvent,
 } from '../types/domain';
 
 /**
@@ -24,6 +26,8 @@ export class EidosDatabase extends Dexie {
   discussions!: Table<AcademicDiscussion, string>;
   exports!: Table<ExportRecord, string>;
   fileBlobs!: Table<FileBlobRecord, string>;
+  projects!: Table<ResearchProject, string>;
+  history!: Table<HistoryEvent, string>;
 
   constructor(name = 'eidosus') {
     super(name);
@@ -36,6 +40,12 @@ export class EidosDatabase extends Dexie {
       discussions: 'id, documentId, updatedAt',
       exports: 'id, documentId, createdAt',
       fileBlobs: 'id, documentId',
+    });
+    // v2 — projects + activity history (Beta spec §22, §23).
+    this.version(2).stores({
+      documents: 'id, source, parseStatus, lastOpenedAt, updatedAt, projectId',
+      projects: 'id, createdAt, updatedAt',
+      history: 'id, type, documentId, projectId, createdAt',
     });
   }
 }
