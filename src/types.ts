@@ -32,6 +32,9 @@ export interface Article {
   originalLines?: ParsedLine[];
   originalLanguage?: string;
   lastReadIndex?: number;
+  /** Provenance for documents imported from a URL (Beta spec §10/§11). */
+  sourceUrl?: string;
+  sourceDomain?: string;
 }
 
 export interface Note {

@@ -6,7 +6,7 @@ export interface UseLibrary {
   entries: LibraryEntry[];
   loading: boolean;
   reload: () => Promise<void>;
-  saveArticle: (article: Article, source?: 'upload' | 'sample') => Promise<void>;
+  saveArticle: (article: Article, source?: 'upload' | 'sample' | 'url') => Promise<void>;
   openArticle: (documentId: string) => Promise<Article | null>;
   removeDocument: (documentId: string) => Promise<void>;
 }
@@ -33,7 +33,7 @@ export function useLibrary(): UseLibrary {
   }, [reload]);
 
   const saveArticle = useCallback(
-    async (article: Article, source: 'upload' | 'sample' = 'upload') => {
+    async (article: Article, source: 'upload' | 'sample' | 'url' = 'upload') => {
       await documentService.saveArticle(article, source);
       await reload();
     },

@@ -55,6 +55,8 @@ export function documentToArticle(
     lines,
     language: document.language,
     lastReadIndex: document.lastReadAnchor?.globalIndex,
+    sourceUrl: document.sourceUrl,
+    sourceDomain: document.sourceDomain,
   };
 }
 

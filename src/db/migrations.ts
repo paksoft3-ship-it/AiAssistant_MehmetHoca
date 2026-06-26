@@ -124,7 +124,9 @@ export function documentFromLegacyArticle(
     createdAt: now,
     updatedAt: now,
     parseStatus: 'ready',
-    source: 'upload',
+    source: article.sourceUrl ? 'url' : 'upload',
+    sourceUrl: article.sourceUrl,
+    sourceDomain: article.sourceDomain,
     lastReadAnchor,
   };
 
