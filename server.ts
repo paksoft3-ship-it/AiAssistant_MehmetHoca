@@ -4,10 +4,11 @@ import { createServer as createViteServer } from "vite";
 import { Type } from "@google/genai";
 import { config, aiAvailable } from "./server/config";
 import { generateContentWithRetry } from "./server/services/geminiClient";
-import { aiRateLimiter } from "./server/middleware/rateLimit";
+import { aiRateLimiter, ttsRateLimiter } from "./server/middleware/rateLimit";
 import { aiNotesRouter } from "./server/routes/aiNotes";
 import { waitlistRouter } from "./server/routes/waitlist";
 import { importRouter } from "./server/routes/importUrl";
+import { ttsRouter } from "./server/routes/tts";
 
 async function startServer() {
   const app = express();
@@ -28,6 +29,7 @@ async function startServer() {
   app.use("/api/gemini", aiRateLimiter);
   app.use("/api/waitlist", aiRateLimiter);
   app.use("/api/import", aiRateLimiter);
+  app.use("/api/tts", ttsRateLimiter);
 
   // Phase 3 — academic note cleaning (modular route + Zod validation).
   app.use("/api/ai", aiNotesRouter);
@@ -37,6 +39,9 @@ async function startServer() {
 
   // Beta Phase 4 — SSRF-safe URL/article import.
   app.use("/api/import", importRouter);
+
+  // Natural neural voices (Edge Read-Aloud proxy) — key-less, optional.
+  app.use("/api/tts", ttsRouter);
 
   // ── Secondary AI features (translation, discussion, figure) ──────────────
   // These remain here for now; they are modularized and hardened in Phase 6.

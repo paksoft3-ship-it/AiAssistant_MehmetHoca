@@ -65,7 +65,7 @@ export default function StandbyOverlay({
 
         {/* Current document + position */}
         <div className="flex flex-col items-center gap-1">
-          <h2 className="max-w-xl text-2xl font-semibold text-white">{documentTitle || 'Belge yok'}</h2>
+          <h2 className="max-w-[36rem] text-2xl font-semibold text-white">{documentTitle || 'Belge yok'}</h2>
           <p className="font-small text-small text-slate-400">
             {isPlaying ? 'Dinleniyor' : 'Duraklatıldı'}
             {positionLabel ? ` · ${positionLabel}` : ''}
@@ -82,7 +82,7 @@ export default function StandbyOverlay({
         </button>
 
         {/* Honest limitations (Beta spec §16, §5 P3) */}
-        <p className="max-w-md font-label-mono text-label-mono leading-relaxed text-slate-500">
+        <p className="max-w-[28rem] font-label-mono text-label-mono leading-relaxed text-slate-500">
           Bekleme modu yalnızca bu sayfa açıkken çalışır. Tarayıcı arka plana alındığında veya ekran
           kilitlendiğinde dinleme cihaz/tarayıcıya bağlı olarak durabilir. Sürekli mikrofon kullanımı
           pil tüketimini artırır.

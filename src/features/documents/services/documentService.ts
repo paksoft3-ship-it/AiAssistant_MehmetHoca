@@ -33,6 +33,17 @@ export const documentService = {
       }
     }
     await documentRepository.save(document, pages, segments);
+
+    // Verify the write actually landed. On iOS Safari Private mode / evicted
+    // storage, the save can resolve without persisting, which would leave the
+    // document missing from the library. Surface that as a clear error instead
+    // of failing silently (CLAUDE.md §18).
+    const persisted = await documentRepository.get(document.id);
+    if (!persisted) {
+      throw new Error(
+        'Belge bu tarayıcının yerel depolamasına kaydedilemedi. Tarayıcınız Gizli/Özel modda olabilir. Lütfen normal bir pencere kullanın.',
+      );
+    }
   },
 
   /** List library documents with their note counts, most-recently-opened first. */

@@ -45,8 +45,23 @@ export interface NoteEditorModalProps {
   onClearTranscript: () => void;
   onSave: (data: NoteEditorSaveData) => void;
   onRequestClean?: (raw: string, excerpt: string) => Promise<CleanNoteResponse>;
+  /**
+   * Contextual AI discussion scoped to the source passage. When provided, a
+   * "Yapay zeka ile tartış" thread is available so the user can think through
+   * the passage with the assistant and pull insights into their note.
+   */
+  onDiscuss?: (
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    contextText: string,
+  ) => Promise<{ text: string; isFallback: boolean }>;
   /** Tags already used across the user's notes, for autocomplete/quick-add. */
   knownTags?: string[];
+}
+
+interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+  isFallback?: boolean;
 }
 
 export default function NoteEditorModal({
@@ -65,6 +80,7 @@ export default function NoteEditorModal({
   onClearTranscript,
   onSave,
   onRequestClean,
+  onDiscuss,
   knownTags = [],
 }: NoteEditorModalProps) {
   const [rawText, setRawText] = useState('');
@@ -73,6 +89,11 @@ export default function NoteEditorModal({
   const [cleanedNote, setCleanedNote] = useState<string | null>(null);
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanWarning, setCleanWarning] = useState<string | null>(null);
+  // Contextual AI discussion thread.
+  const [showDiscuss, setShowDiscuss] = useState(false);
+  const [chat, setChat] = useState<ChatTurn[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isDiscussing, setIsDiscussing] = useState(false);
   const usedMicRef = useRef(false);
   const recognitionSupported = isSpeechRecognitionSupported();
 
@@ -84,6 +105,10 @@ export default function NoteEditorModal({
       setCleanedNote(null);
       setCleanWarning(null);
       setIsCleaning(false);
+      setShowDiscuss(false);
+      setChat([]);
+      setChatInput('');
+      setIsDiscussing(false);
       usedMicRef.current = false;
     }
   }, [isOpen]);
@@ -115,6 +140,38 @@ export default function NoteEditorModal({
     } finally {
       setIsCleaning(false);
     }
+  };
+
+  const handleSendDiscuss = async () => {
+    const question = chatInput.trim();
+    if (!onDiscuss || !question || isDiscussing) return;
+    const nextChat: ChatTurn[] = [...chat, { role: 'user', content: question }];
+    setChat(nextChat);
+    setChatInput('');
+    setIsDiscussing(true);
+    try {
+      const history = nextChat.map((m) => ({ role: m.role, content: m.content }));
+      const { text, isFallback } = await onDiscuss(history, sourceExcerpt);
+      setChat([...nextChat, { role: 'assistant', content: text, isFallback }]);
+    } catch (err) {
+      console.error('[EidosUs] Discussion failed:', err);
+      setChat([
+        ...nextChat,
+        {
+          role: 'assistant',
+          content: 'Yapay zeka tartışma servisine şu anda ulaşılamadı. Notunuzu almaya devam edebilirsiniz.',
+          isFallback: true,
+        },
+      ]);
+    } finally {
+      setIsDiscussing(false);
+    }
+  };
+
+  // Pull an assistant reply into the note's raw transcript so it can become a
+  // research note (origin stays the user's, per CLAUDE.md §14.4).
+  const addInsightToNote = (text: string) => {
+    setRawText((prev) => (prev.trim() ? `${prev.trim()}\n\n${text}` : text));
   };
 
   const handleSave = () => {
@@ -248,6 +305,87 @@ export default function NoteEditorModal({
                 Akademik Olarak Düzenle
               </button>
               {cleanWarning && <p className="text-center font-label-mono text-label-mono text-warning">{cleanWarning}</p>}
+            </div>
+          )}
+
+          {/* Contextual AI discussion ("Yapay zeka ile tartış") */}
+          {onDiscuss && (
+            <div className="rounded-xl border border-border bg-surface-muted/60 p-md">
+              <button
+                onClick={() => setShowDiscuss((v) => !v)}
+                className="flex w-full items-center justify-between gap-sm text-left"
+                aria-expanded={showDiscuss}
+              >
+                <span className="flex items-center gap-sm font-small text-small font-medium text-text">
+                  <Icon name="forum" className="text-[18px] text-primary" />
+                  Yapay zeka ile tartış
+                </span>
+                <Icon name={showDiscuss ? 'expand_less' : 'expand_more'} className="text-[20px] text-text-muted" />
+              </button>
+
+              {showDiscuss && (
+                <div className="mt-md flex flex-col gap-sm">
+                  <p className="flex items-start gap-xs font-label-mono text-label-mono text-outline">
+                    <Icon name="info" className="text-[14px]" />
+                    Yanıtlar yalnızca yukarıdaki kaynak pasajına dayanan birer yorumdur; tüm makalenin görüşü değildir.
+                  </p>
+
+                  {chat.length > 0 && (
+                    <div className="flex max-h-56 flex-col gap-sm overflow-y-auto rounded-lg border border-border bg-surface p-md dark:bg-slate-950">
+                      {chat.map((m, i) => (
+                        <div key={i} className={m.role === 'user' ? 'self-end max-w-[85%]' : 'self-start max-w-[90%]'}>
+                          <div
+                            className={`rounded-xl px-md py-sm font-small text-small ${
+                              m.role === 'user'
+                                ? 'bg-primary text-on-primary'
+                                : 'border border-border bg-surface-muted text-text dark:bg-slate-900 dark:text-slate-100'
+                            }`}
+                          >
+                            {m.content}
+                          </div>
+                          {m.role === 'assistant' && (
+                            <button
+                              onClick={() => addInsightToNote(m.content)}
+                              className="mt-xs flex items-center gap-0.5 font-label-mono text-label-mono text-primary transition-colors hover:text-primary-hover"
+                            >
+                              <Icon name="note_add" className="text-[14px]" /> Nota ekle
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {isDiscussing && (
+                        <div className="self-start flex items-center gap-xs font-small text-small text-text-muted">
+                          <Icon name="progress_activity" className="animate-spin text-[16px]" /> Düşünülüyor…
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-end gap-sm">
+                    <textarea
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSendDiscuss();
+                        }
+                      }}
+                      rows={2}
+                      placeholder="Bu pasaj hakkında bir soru sorun veya görüşünüzü paylaşın…"
+                      className={`${textareaCls} flex-1`}
+                    />
+                    <button
+                      onClick={() => void handleSendDiscuss()}
+                      disabled={isDiscussing || !chatInput.trim()}
+                      className="flex flex-none items-center gap-xs rounded-btn bg-primary px-md py-sm font-small text-small font-medium text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Gönder"
+                    >
+                      <Icon name="send" className="text-[18px]" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -143,7 +143,7 @@ export default function LandingView(props: LandingViewProps) {
                 </div>
                 {percent > 0 && (
                   <div
-                    className="mt-1 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-surface"
+                    className="mt-1 h-1.5 w-full max-w-[20rem] overflow-hidden rounded-full bg-surface"
                     role="progressbar"
                     aria-valuenow={percent}
                     aria-valuemin={0}

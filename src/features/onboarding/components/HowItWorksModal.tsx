@@ -80,7 +80,7 @@ export default function HowItWorksModal({ isOpen, onClose, onSpeak, onStopSpeak 
           role="dialog"
           aria-modal="true"
           aria-labelledby="how-it-works-title"
-          className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900"
+          className="flex max-h-[92vh] w-full max-w-[36rem] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

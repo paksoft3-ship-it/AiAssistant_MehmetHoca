@@ -1,6 +1,7 @@
 import { SpeechSettings, AppVoice } from '../types';
 import { PRODUCT } from '../config/product';
 import { rankVoice } from '../features/speech/services/voiceRanking';
+import { isEdgeVoiceURI } from '../features/speech/services/edgeVoices';
 import { SPEED_OPTIONS, formatSpeedLabel } from '../features/speech/services/speechOptions';
 import { Icon } from './ui/Icon';
 
@@ -72,6 +73,12 @@ export default function Navbar({
     })
     .sort((a, b) => rankVoice(b) - rankVoice(a));
   const displayVoices = [...langMatchVoices, ...trVoices, ...extraVoices].slice(0, 100);
+
+  // Split into natural (online neural, served by /api/tts) vs. device (offline
+  // Web Speech) voices so the picker makes the quality difference explicit and
+  // honest — natural voices need a connection (CLAUDE.md §9, §17).
+  const naturalVoices = displayVoices.filter((v) => isEdgeVoiceURI(v.voiceURI));
+  const deviceVoices = displayVoices.filter((v) => !isEdgeVoiceURI(v.voiceURI));
 
   // Compact "trigger-style" select used in the top bar.
   const triggerSelect =
@@ -151,7 +158,10 @@ export default function Navbar({
           <div className="hidden h-6 w-px bg-border md:block" />
 
           {/* Voice selector */}
-          <div className="flex items-center gap-sm" title="Okuma sesi (cihazınızdaki seslere bağlıdır)">
+          <div
+            className="flex items-center gap-sm"
+            title="Okuma sesi — Doğal sesler internet bağlantısı gerektirir; Cihaz sesleri çevrimdışı çalışır"
+          >
             <Icon name="record_voice_over" className="text-[18px] text-text-muted" />
             <select
               value={settings.voiceURI}
@@ -159,9 +169,20 @@ export default function Navbar({
               className={triggerSelect}
             >
               <option value="" disabled>Okuyucu Sesi</option>
-              {displayVoices.map((v) => (
-                <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
-              ))}
+              {naturalVoices.length > 0 && (
+                <optgroup label="Doğal Sesler (çevrimiçi)">
+                  {naturalVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {deviceVoices.length > 0 && (
+                <optgroup label="Cihaz Sesleri (çevrimdışı)">
+                  {deviceVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                  ))}
+                </optgroup>
+              )}
               {displayVoices.length === 0 && <option value="">Sesler yükleniyor…</option>}
             </select>
           </div>

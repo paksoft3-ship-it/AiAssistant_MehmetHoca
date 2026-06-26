@@ -277,7 +277,7 @@ export default function NotesPanel({
             <h4 className="mt-4 text-xs font-bold text-slate-800 dark:text-slate-200">
               Henüz Not Alınmadı
             </h4>
-            <p className="mt-1 text-2xs text-slate-400 max-w-xs leading-relaxed">
+            <p className="mt-1 text-2xs text-slate-400 max-w-[20rem] leading-relaxed">
               Okuma esnasında istediğiniz an <strong className="text-red-500">Dur, Not Alalım!</strong> butonuna basarak veya hands-free konuşarak sesli notlarınızı buraya kaydedebilirsiniz.
             </p>
           </div>

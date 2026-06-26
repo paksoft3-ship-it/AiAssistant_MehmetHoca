@@ -20,7 +20,7 @@ export default function PrivacyNotice({ isOpen, onClose, onClearData }: PrivacyN
   return (
     <Portal>
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/20 p-md backdrop-blur-md sm:p-lg">
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900">
+      <div className="flex max-h-[92vh] w-full max-w-[32rem] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border bg-surface px-lg py-md dark:bg-slate-900">
           <h3 className="flex items-center gap-sm font-h3-card-title text-h3-card-title text-on-surface dark:text-white">

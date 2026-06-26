@@ -664,7 +664,7 @@ export default function ReaderPanel({
           <h3 className="text-base font-bold text-slate-900 dark:text-white font-sans">
             Yapay Zeka Makaleyi Türkçeye Çeviriyor
           </h3>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-sm font-sans">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-[24rem] font-sans">
             {translationProgress}
           </p>
           <div className="mt-4 text-2xs font-mono text-indigo-500 bg-indigo-50/50 px-3 py-1.5 rounded-lg border border-indigo-100/30 dark:bg-indigo-950/25 dark:border-indigo-900/30">

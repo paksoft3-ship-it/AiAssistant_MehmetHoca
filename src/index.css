@@ -47,7 +47,14 @@
   --radius-card: 20px;
   --radius-btn: 12px;
 
-  /* Named spacing (matches the design's px-lg / gap-md / py-xl scale) */
+  /* Named spacing (matches the design's px-lg / gap-md / py-xl scale).
+   *
+   * WARNING: these keys (xs/sm/md/lg/xl) collide with Tailwind v4's t-shirt
+   * size scale. In v4 the `max-w-*` / `min-w-*` / `w-*` utilities read the
+   * spacing namespace, so `max-w-md` resolves to 16px (this token) instead of
+   * the 28rem container size — which silently shrinks modals to a thin strip.
+   * Do NOT use `max-w-md`/`max-w-xl`/etc.; use arbitrary values like
+   * `max-w-[28rem]` for widths. See the dialog components for the pattern. */
   --spacing-base: 4px;
   --spacing-xs: 4px;
   --spacing-sm: 8px;

@@ -41,7 +41,7 @@ export default function HistoryModal({ isOpen, onClose }: HistoryModalProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="history-title"
-          className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900"
+          className="flex max-h-[92vh] w-full max-w-[32rem] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-border px-lg py-md">

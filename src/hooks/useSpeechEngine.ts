@@ -4,6 +4,11 @@ import {
   getBestVoiceForLanguage,
   getSpokenVoice,
 } from '../features/speech/services/voiceRanking';
+import {
+  edgeVoicesAsAppVoices,
+  isEdgeVoiceURI,
+} from '../features/speech/services/edgeVoices';
+import { EdgeTtsPlayer } from '../features/speech/services/edgePlayer';
 import { featureFlags } from '../config/featureFlags';
 
 // Re-exported for backward compatibility with existing imports.
@@ -209,6 +214,9 @@ export function useSpeechEngine(
   }, [articleLanguage]);
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // Lazily-created player for the natural (Edge neural) voices. Kept in a ref so
+  // a single <audio> element is reused across the whole reading session.
+  const edgePlayerRef = useRef<EdgeTtsPlayer | null>(null);
   const isTransitioningRef = useRef(false);
   const currentLineIdxRef = useRef(initialLineIndex);
   const recognitionRef = useRef<any>(null);
@@ -238,11 +246,13 @@ export function useSpeechEngine(
 
   // Load and filter voices
   const updateVoices = useCallback(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const allVoices = window.speechSynthesis.getVoices();
-    
+    const allVoices =
+      typeof window !== 'undefined' && window.speechSynthesis
+        ? window.speechSynthesis.getVoices()
+        : [];
+
     // Map the real device voices only. We never inject synthetic "premium"/"AI"
-    // voices — availability depends entirely on the browser and OS (CLAUDE.md §9.2).
+    // voices — device availability depends entirely on the browser and OS (CLAUDE.md §9.2).
     const mapped: AppVoice[] = allVoices.map(v => ({
       voiceURI: v.voiceURI,
       name: v.name,
@@ -251,7 +261,14 @@ export function useSpeechEngine(
       default: v.default,
     }));
 
-    setVoices(mapped);
+    // Prepend the natural neural voices (served by /api/tts). These are real
+    // voices rendered server-side, offered alongside — not instead of — the
+    // offline device voices, so users can always opt out (CLAUDE.md §9, §17).
+    const merged = featureFlags.naturalVoices
+      ? [...edgeVoicesAsAppVoices(), ...mapped]
+      : mapped;
+
+    setVoices(merged);
   }, []);
 
   useEffect(() => {
@@ -268,13 +285,24 @@ export function useSpeechEngine(
 
   // Automatically switch voice lock when articleLanguage changes or voices are loaded
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis || voices.length === 0) return;
-    
+    if (voices.length === 0) return;
+
     const targetLang = articleLanguage || 'tr';
-    const defaultVoice = 
-      getBestVoiceForLanguage(voices, targetLang) || 
-      getBestVoiceForLanguage(voices, 'tr') || 
-      getBestVoiceForLanguage(voices, 'en') || 
+
+    // Prefer a natural neural voice in the document's language (CLAUDE.md §9):
+    // these sound human, so they make the best default. Fall back to the
+    // best-ranked device voice when natural voices are disabled/unavailable.
+    const preferEdge = featureFlags.naturalVoices
+      ? voices.find(
+          (v) => isEdgeVoiceURI(v.voiceURI) && v.lang.toLowerCase().startsWith(targetLang.toLowerCase()),
+        ) || voices.find((v) => isEdgeVoiceURI(v.voiceURI) && v.lang.toLowerCase().startsWith('tr'))
+      : undefined;
+
+    const defaultVoice =
+      preferEdge ||
+      getBestVoiceForLanguage(voices, targetLang) ||
+      getBestVoiceForLanguage(voices, 'tr') ||
+      getBestVoiceForLanguage(voices, 'en') ||
       voices[0];
     
     if (defaultVoice) {
@@ -547,44 +575,29 @@ export function useSpeechEngine(
     window.speechSynthesis.speak(promptUtterance);
   }, [lines, settings, voices, articleLanguage, getRecognitionLocale, triggerGraphSummary, skipGraphSummary, graphSummaryText]);
 
-  // Read sentence out loud
+  // Read sentence out loud (routes through the natural neural voice or the
+  // device Web Speech voice depending on the user's selection).
   const speakLine = useCallback((index: number) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis || lines.length === 0) return;
+    if (typeof window === 'undefined' || lines.length === 0) return;
 
     if (index < 0 || index >= lines.length) {
-      window.speechSynthesis.cancel();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      edgePlayerRef.current?.cancel();
       setIsPlaying(false);
       return;
     }
 
-    window.speechSynthesis.cancel();
-
     const line = lines[index];
-    // Optimize text for pronunciation with document correct language
-    const utterance = new SpeechSynthesisUtterance(optimizeTextForTTS(line.text, articleLanguage || 'tr'));
-    
-    const resolved = resolvePhysicalVoiceAndParams(
-      settings.voiceURI,
-      settings.rate,
-      settings.pitch,
-      voices
-    );
-    if (resolved.voice) {
-      utterance.voice = resolved.voice;
-      utterance.lang = resolved.voice.lang;
-    }
 
-    utterance.rate = resolved.rate;
-    utterance.pitch = resolved.pitch;
-
-    utterance.onend = () => {
+    // Shared "what to do when this sentence finishes" logic, identical across
+    // both speech backends so playback behaves the same either way.
+    const advance = () => {
       if (isTransitioningRef.current) return;
 
       // Figure/graph explanation is experimental and off by default (CLAUDE.md §14.6).
       // When disabled, a figure caption is simply read like any other line.
       const isGraphLine = !!line.isGraph && featureFlags.figureExplanation;
       if (isGraphLine) {
-        // Intercept play flow and ask for verbal approval
         handleGraphEncounter(index);
       } else {
         const nextIdx = index + 1;
@@ -599,6 +612,55 @@ export function useSpeechEngine(
         }
       }
     };
+
+    // Natural neural voice (Edge Read-Aloud): server renders MP3, we play it
+    // locally. The neural model reads numbers/abbreviations naturally, so we
+    // pass the raw text rather than the device-voice pronunciation tweaks.
+    if (isEdgeVoiceURI(settings.voiceURI)) {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (!edgePlayerRef.current) edgePlayerRef.current = new EdgeTtsPlayer();
+      const voiceLang =
+        voices.find((v) => v.voiceURI === settings.voiceURI)?.lang || articleLanguage || 'tr-TR';
+      edgePlayerRef.current.play(
+        line.text,
+        settings.voiceURI,
+        settings.rate,
+        settings.pitch,
+        voiceLang,
+        {
+          onEnd: advance,
+          onError: (err) => {
+            console.warn('Natural voice playback failed:', err);
+            setIsPlaying(false);
+          },
+        },
+      );
+      return;
+    }
+
+    // Device Web Speech voice.
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    edgePlayerRef.current?.cancel();
+
+    // Optimize text for pronunciation with document correct language
+    const utterance = new SpeechSynthesisUtterance(optimizeTextForTTS(line.text, articleLanguage || 'tr'));
+
+    const resolved = resolvePhysicalVoiceAndParams(
+      settings.voiceURI,
+      settings.rate,
+      settings.pitch,
+      voices
+    );
+    if (resolved.voice) {
+      utterance.voice = resolved.voice;
+      utterance.lang = resolved.voice.lang;
+    }
+
+    utterance.rate = resolved.rate;
+    utterance.pitch = resolved.pitch;
+
+    utterance.onend = () => advance();
 
     utterance.onerror = (e) => {
       console.warn('Utterance error or cancel context:', e.error);
@@ -620,19 +682,19 @@ export function useSpeechEngine(
   }, [lines, currentLineIdx, speakLine, clearGraphSession]);
 
   const pause = useCallback(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
     setIsPlaying(false);
     clearGraphSession();
-    window.speechSynthesis.cancel();
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    edgePlayerRef.current?.cancel();
   }, [clearGraphSession]);
 
   const stop = useCallback(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
     setIsPlaying(false);
     setCurrentLineIdx(0);
     onLineChange(0);
     clearGraphSession();
-    window.speechSynthesis.cancel();
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    edgePlayerRef.current?.cancel();
   }, [onLineChange, clearGraphSession]);
 
   const setLineIndex = useCallback((index: number) => {
@@ -665,6 +727,7 @@ export function useSpeechEngine(
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
+      edgePlayerRef.current?.cancel();
       if (graphApprovalRecRef.current) {
         graphApprovalRecRef.current.abort();
       }

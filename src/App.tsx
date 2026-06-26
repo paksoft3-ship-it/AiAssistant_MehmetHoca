@@ -8,10 +8,13 @@ import { useSpeechEngine } from './hooks/useSpeechEngine';
 
 import { useLibrary } from './features/documents/hooks/useLibrary';
 import { documentService } from './features/documents/services/documentService';
+import { checkStorageWritable } from './db/storageHealth';
+import { Icon } from './components/ui/Icon';
 import { useResearchNotes } from './features/notes/hooks/useResearchNotes';
 import { buildSourceAnchor } from './features/notes/services/sourceAnchor';
 import { collectTags } from './features/notes/services/noteQueries';
 import { requestCleanNote } from './features/notes/services/aiNoteCleaning';
+import { sendDiscussionMessage } from './features/discussion/services/discussionService';
 import { translateText, translateBatch } from './features/translation/services/translationService';
 import { importFromUrl } from './features/url-import/services/importClient';
 import {
@@ -124,6 +127,9 @@ export default function App() {
   const [isParsing, setIsParsing] = useState(false);
   const [parsingPercent, setParsingPercent] = useState(0);
   const [parsingError, setParsingError] = useState<string | null>(null);
+  // Set when local storage (IndexedDB) is unavailable/non-durable so we can warn
+  // the user that documents and notes won't be saved (CLAUDE.md §17, §18).
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<string | null>(null);
   const [isReadingOriginal, setIsReadingOriginal] = useState(false);
@@ -188,6 +194,15 @@ export default function App() {
   useEffect(() => {
     if (!activeArticle) void reloadLibrary();
   }, [activeArticle, reloadLibrary]);
+
+  // Detect at startup whether this browser can persist data locally; if not
+  // (e.g. iOS Safari Private mode), warn the user so a missing-document later
+  // is explained rather than mysterious (CLAUDE.md §17, §18).
+  useEffect(() => {
+    void checkStorageWritable().then((health) => {
+      setStorageWarning(health.writable ? null : health.reason ?? null);
+    });
+  }, []);
 
   const rememberActive = (id: string | null) => {
     if (typeof localStorage === 'undefined') return;
@@ -568,6 +583,23 @@ export default function App() {
     [activeArticle?.title, activeLanguage],
   );
 
+  // Contextual AI discussion ("yapay zeka ile tartış") scoped to the source
+  // passage, surfaced inside the note editor (CLAUDE.md §14.4).
+  const discussionEnabled = featureFlags.aiFeatures && featureFlags.discussion;
+  const handleDiscuss = useCallback(
+    async (
+      messages: { role: 'user' | 'assistant'; content: string }[],
+      contextText: string,
+    ) => {
+      return sendDiscussionMessage({
+        messages,
+        contextText,
+        articleTitle: activeArticle?.title,
+      });
+    },
+    [activeArticle?.title],
+  );
+
   const handleCloseNoteEditor = () => {
     pendingSelectionRef.current = null;
     cancelRecording();
@@ -633,6 +665,22 @@ export default function App() {
   return (
     <div className={`flex flex-col bg-canvas dark:bg-slate-950 ${activeArticle ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <a href="#main-content" className="skip-link">İçeriğe geç</a>
+      {storageWarning && (
+        <div
+          role="alert"
+          className="flex items-start gap-sm bg-warning-soft px-md py-sm font-small text-small text-warning"
+        >
+          <Icon name="warning" className="mt-0.5 flex-none text-[18px]" />
+          <span>{storageWarning}</span>
+          <button
+            onClick={() => setStorageWarning(null)}
+            className="ml-auto flex-none rounded p-0.5 hover:bg-warning/10"
+            aria-label="Uyarıyı kapat"
+          >
+            <Icon name="close" className="text-[18px]" />
+          </button>
+        </div>
+      )}
       <Navbar
         voices={voices}
         settings={settings}
@@ -847,6 +895,7 @@ export default function App() {
           }}
           onSave={handleSaveResearchNote}
           onRequestClean={aiCleaningEnabled ? handleRequestClean : undefined}
+          onDiscuss={discussionEnabled ? handleDiscuss : undefined}
           knownTags={knownTags}
         />
       )}

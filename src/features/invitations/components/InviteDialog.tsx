@@ -57,7 +57,7 @@ export default function InviteDialog({ isOpen, onClose }: InviteDialogProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="invite-title"
-          className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900"
+          className="flex w-full max-w-[28rem] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:bg-slate-900"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-border px-lg py-md">

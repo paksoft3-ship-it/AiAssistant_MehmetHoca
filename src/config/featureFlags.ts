@@ -31,6 +31,12 @@ export const featureFlags = {
   /** Hands-free voice commands. */
   handsFree: readBool(env.VITE_FEATURE_HANDS_FREE, true),
   /**
+   * Natural neural voices via the key-less Edge Read-Aloud proxy (`/api/tts`).
+   * On by default — it needs no API key. Requires network and sends the read
+   * passage text to Microsoft; users can switch back to offline device voices.
+   */
+  naturalVoices: readBool(env.VITE_FEATURE_NATURAL_VOICES, true),
+  /**
    * Figure/graph explanation. Experimental and OFF by default until it is
    * trustworthy (never fabricates trends) — CLAUDE.md §14.6.
    */

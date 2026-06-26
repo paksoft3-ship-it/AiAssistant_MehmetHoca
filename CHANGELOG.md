@@ -4,6 +4,13 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Fixes & natural voices (2026-06-26)
+- **Modal width bug (all dialogs)**: in Tailwind v4 the custom `--spacing-{sm,md,lg,xl}` design tokens collided with the t-shirt size scale, so `max-w-xl` resolved to **32px** and every dialog (Accessibility, Assistant settings, History, Privacy, "Nasıl Çalışır?", note editor, …) opened as a thin vertical strip. Replaced the 11 `max-w-*` usages with arbitrary rem values (`max-w-[28rem]`, `max-w-[36rem]`, …) and documented the collision in `src/index.css`. This also fixes the "Nasıl çalıştığını gör" button appearing broken (the guide was opening invisibly).
+- **Natural neural voices** (spec §9): added a key-less `/api/tts` proxy (Microsoft Edge Read-Aloud via `msedge-tts`) offering real Turkish neural voices (Emel/Ahmet) and others, replacing the single robotic device voice. Voice picker groups "Doğal Sesler (çevrimiçi)" vs "Cihaz Sesleri (çevrimdışı)"; a natural voice is the default for the document language. Honest about the network round-trip (text sent to Microsoft); device voices remain a one-click offline fallback. Gated by the `naturalVoices` flag, rate-limited (300/min) separately from AI endpoints.
+- **"Yapay zeka ile tartış" in the note flow** (spec §14.4): wired the existing (previously orphaned) discussion service into the note editor — an inline, source-scoped AI discussion thread with "Nota ekle" to pull insights into the note. Gated by the `discussion` flag.
+- **Library persistence diagnostics** (spec §18): `saveArticle` now reads the document back after writing and raises a clear error if it didn't persist; a startup `checkStorageWritable()` probe shows a banner when local storage is unavailable (e.g. iOS Safari Private mode) — so an uploaded/imported document that can't be saved is explained, not silently missing.
+- Verified: `npm run lint` (pass), `npm test` (127 pass), `npm run build` (pass), and a live `/api/tts` synthesis round-trip (MP3 returned).
+
 ### Beta Phase 8/9 — Entitlements & open-source/beta docs (2026-06-26)
 - **Feature-entitlement abstraction** (spec §26): `resolveEntitlement` (tested) — every feature is free in the beta; core reading/notes/export and accessibility are in the always-free set; no ad SDK. A future quota/server resolver can swap in without changing call sites.
 - **Open-source docs**: `CONTRIBUTING.md`, `SECURITY.md` (incl. the SSRF posture), `CODE_OF_CONDUCT.md`.
