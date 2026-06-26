@@ -98,3 +98,63 @@ html {
   line-height: 1;
   vertical-align: middle;
 }
+
+/* ── Accessibility (Beta spec §27) ────────────────────────────────────────── */
+
+/* Skip-to-content link: hidden until focused, then visible at top-left. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 300;
+  border-radius: 0.5rem;
+  background: var(--color-primary, #4f46e5);
+  color: #fff;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Large-text mode scales the root font; rem-based sizing follows. */
+.a11y-large-text {
+  font-size: 118%;
+}
+
+/* High-contrast mode strengthens borders and text. */
+.a11y-high-contrast {
+  --tw-border-opacity: 1;
+}
+.a11y-high-contrast *,
+.a11y-high-contrast *::before,
+.a11y-high-contrast *::after {
+  border-color: currentColor !important;
+}
+.a11y-high-contrast .text-text-muted {
+  color: var(--color-text, #1f2937) !important;
+}
+
+/* Reduced-motion mode disables animations and transitions app-wide. */
+.a11y-reduced-motion *,
+.a11y-reduced-motion *::before,
+.a11y-reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Respect the OS reduced-motion setting too. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
