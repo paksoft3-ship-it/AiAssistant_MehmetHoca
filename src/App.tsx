@@ -10,15 +10,33 @@ import { useLibrary } from './features/documents/hooks/useLibrary';
 import { documentService } from './features/documents/services/documentService';
 import { useResearchNotes } from './features/notes/hooks/useResearchNotes';
 import { buildSourceAnchor } from './features/notes/services/sourceAnchor';
+import { collectTags } from './features/notes/services/noteQueries';
 import { requestCleanNote } from './features/notes/services/aiNoteCleaning';
 import { translateText, translateBatch } from './features/translation/services/translationService';
+import { importFromUrl } from './features/url-import/services/importClient';
 import {
   searchLibrary,
   filterByLanguage,
   sortLibrary,
   listLanguages,
+  selectContinueEntry,
   type LibrarySortKey,
 } from './features/library/services/libraryQueries';
+import { useProjects } from './features/projects/hooks/useProjects';
+import { historyRepository } from './db/repositories';
+import HistoryModal from './features/history/components/HistoryModal';
+import InviteDialog from './features/invitations/components/InviteDialog';
+import StandbyOverlay from './features/assistant/components/StandbyOverlay';
+import AssistantSettingsModal from './features/assistant/components/AssistantSettingsModal';
+import { loadAssistantPrefs, saveAssistantPrefs, type AssistantPreferences } from './features/assistant/services/assistantPreferences';
+import AccessibilitySettingsModal from './features/accessibility/components/AccessibilitySettingsModal';
+import {
+  loadA11yPrefs,
+  saveA11yPrefs,
+  accessibilityClasses,
+  ALL_A11Y_CLASSES,
+  type AccessibilityPreferences,
+} from './features/accessibility/services/accessibilityPreferences';
 import { resetAllData, PREF_KEYS } from './db/reset';
 import { PRODUCT } from './config/product';
 import { featureFlags } from './config/featureFlags';
@@ -32,6 +50,10 @@ import ExportDialog from './features/export/components/ExportDialog';
 import PrivacyNotice from './components/PrivacyNotice';
 import LandingView from './components/LandingView';
 import LeftRail from './components/LeftRail';
+import HowItWorksModal from './features/onboarding/components/HowItWorksModal';
+
+const UNSAVED_NOTE_MSG =
+  'Kaydedilmemiş bir notunuz var. Ana sayfaya dönerseniz bu not kaybolacak. Devam edilsin mi?';
 
 // High Craft Premium Turkish Sample Article Content for testing out of the box
 const SAMPLE_ARTICLE: Article = {
@@ -107,6 +129,35 @@ export default function App() {
   const [isReadingOriginal, setIsReadingOriginal] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isHowOpen, setIsHowOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [projectFilter, setProjectFilter] = useState<string>(''); // '' = all
+  const [isStandby, setIsStandby] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [assistantPrefs, setAssistantPrefs] = useState<AssistantPreferences>(() => loadAssistantPrefs());
+
+  const handleSaveAssistantPrefs = useCallback((prefs: AssistantPreferences) => {
+    setAssistantPrefs(prefs);
+    saveAssistantPrefs(prefs);
+  }, []);
+
+  const [isA11yOpen, setIsA11yOpen] = useState(false);
+  const [a11yPrefs, setA11yPrefs] = useState<AccessibilityPreferences>(() => loadA11yPrefs());
+
+  const handleChangeA11yPrefs = useCallback((prefs: AccessibilityPreferences) => {
+    setA11yPrefs(prefs);
+    saveA11yPrefs(prefs);
+  }, []);
+
+  // Apply accessibility preferences as root classes (global CSS reacts).
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.classList.remove(...ALL_A11Y_CLASSES);
+    const classes = accessibilityClasses(a11yPrefs);
+    if (classes.length) root.classList.add(...classes);
+  }, [a11yPrefs]);
   // Library controls (dashboard).
   const [librarySearch, setLibrarySearch] = useState('');
   const [librarySort, setLibrarySort] = useState<LibrarySortKey>('recent');
@@ -120,22 +171,18 @@ export default function App() {
   // IndexedDB-backed library + notes for the active document.
   const { entries: libraryEntries, saveArticle, openArticle, removeDocument, reload: reloadLibrary } = useLibrary();
   const { notes, addNote, updateNote, deleteNote } = useResearchNotes(activeArticle?.id ?? null);
+  const knownTags = useMemo(() => collectTags(notes), [notes]);
+  const { projects, createProject, removeProject, assignDocument, reload: reloadProjects } = useProjects();
 
   // Reset read-mode defaults when active article shifts
   useEffect(() => {
     setIsReadingOriginal(false);
   }, [activeArticle?.id]);
 
-  // Restore the last-opened document on startup (session continuity across reload).
-  useEffect(() => {
-    const lastId = typeof localStorage !== 'undefined' ? localStorage.getItem(PREF_KEYS.lastActiveDocument) : null;
-    if (!lastId) return;
-    let cancelled = false;
-    void documentService.openArticle(lastId).then((article) => {
-      if (!cancelled && article) setActiveArticle(article);
-    });
-    return () => { cancelled = true; };
-  }, []);
+  // NOTE: we intentionally do NOT auto-open the last document into the reader on
+  // startup. Users land on home, where a prominent "Okumaya Devam Et" card (see
+  // `continueEntry`) lets them resume at their saved position in one tap. This
+  // keeps the home page reachable instead of stranding users in the reader.
 
   // Refresh library (and note counts) whenever we return to the dashboard.
   useEffect(() => {
@@ -157,6 +204,7 @@ export default function App() {
     try {
       const parsed = await parseFile(file, (percent) => setParsingPercent(percent));
       await saveArticle(parsed, 'upload');
+      void historyRepository.add({ type: 'document_uploaded', documentId: parsed.id, metadata: { title: parsed.title } });
       setActiveArticle(parsed);
       rememberActive(parsed.id);
     } catch (err: any) {
@@ -179,6 +227,26 @@ export default function App() {
     if (files && files.length > 0) handleFileUpload(files[0]);
   };
 
+  // --- URL IMPORT (Beta Phase 4) ---
+  const handleImportUrl = async (url: string) => {
+    if (!url.trim()) return;
+    setIsParsing(true);
+    setParsingPercent(0);
+    setParsingError(null);
+    try {
+      const article = await importFromUrl(url, (percent) => setParsingPercent(percent));
+      await saveArticle(article, 'url');
+      void historyRepository.add({ type: 'url_imported', documentId: article.id, metadata: { title: article.title, name: article.sourceDomain ?? '' } });
+      setActiveArticle(article);
+      rememberActive(article.id);
+    } catch (err: any) {
+      console.error(err);
+      setParsingError(err?.message || 'Bağlantıdan içerik alınamadı. Lütfen genel erişime açık bir adres deneyin.');
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
   const handleLoadSample = async () => {
     await saveArticle(SAMPLE_ARTICLE, 'sample');
     setActiveArticle(SAMPLE_ARTICLE);
@@ -190,6 +258,7 @@ export default function App() {
   const handleOpenFromLibrary = async (documentId: string) => {
     const article = await openArticle(documentId);
     if (article) {
+      void historyRepository.add({ type: 'document_opened', documentId: article.id, metadata: { title: article.title } });
       setActiveArticle(article);
       rememberActive(article.id);
       setParsingError(null);
@@ -393,6 +462,58 @@ export default function App() {
     activeArticle?.lastReadIndex || 0,
   );
 
+  // --- HOME / BROWSER-BACK NAVIGATION ---
+  // The app is router-less: "home" simply means no active article. To make the
+  // browser Back button (and a reliable Home control on mobile) behave, we push
+  // one history entry when a document opens and treat a back navigation as a
+  // request to return home — instead of leaving the site entirely.
+  const activeArticleRef = useRef<Article | null>(null);
+  const isRecordingNoteRef = useRef(false);
+  const readerStatePushed = useRef(false);
+  useEffect(() => { activeArticleRef.current = activeArticle; }, [activeArticle]);
+  useEffect(() => { isRecordingNoteRef.current = isRecordingNote; }, [isRecordingNote]);
+
+  // Keep exactly one "reader" history entry alive while a document is open.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeArticle && !readerStatePushed.current) {
+      window.history.pushState({ eidosusReader: true }, '');
+      readerStatePushed.current = true;
+    } else if (!activeArticle && readerStatePushed.current) {
+      // Returned home through a non-back path (delete / clear-all). Drop the
+      // stale entry so Back doesn't strand the user on an empty reader.
+      readerStatePushed.current = false;
+      if (window.history.state?.eidosusReader) window.history.back();
+    }
+  }, [activeArticle]);
+
+  // Single guard + clear point for back navigations (hardware Back and the
+  // Home button both route through history.back()).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPop = () => {
+      if (!activeArticleRef.current) return; // not in reader — allow normal nav
+      if (isRecordingNoteRef.current && !window.confirm(UNSAVED_NOTE_MSG)) {
+        // Cancelled — re-push to keep the user in the reader.
+        window.history.pushState({ eidosusReader: true }, '');
+        return;
+      }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      readerStatePushed.current = false;
+      setActiveArticle(null);
+      rememberActive(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Home button / brand / reader close — defer the clearing to the popstate
+  // handler so the guard lives in exactly one place.
+  const handleGoHome = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (activeArticleRef.current) window.history.back();
+  }, []);
+
   // --- SOURCE-LINKED NOTE WORKFLOW ---
   const handleTriggerNote = useCallback((selectedText?: string) => {
     pendingSelectionRef.current = selectedText ?? null;
@@ -419,6 +540,9 @@ export default function App() {
       cleanedAcademicNote: data.cleanedAcademicNote,
       tags: data.tags,
     });
+    if (activeArticle) {
+      void historyRepository.add({ type: 'note_created', documentId: activeArticle.id, metadata: { title: activeArticle.title } });
+    }
     pendingSelectionRef.current = null;
     cancelRecording();
     setMobileTab('notes');
@@ -455,9 +579,11 @@ export default function App() {
     setTimeout(() => handleLineIndexChangeInSpeech(anchor.globalIndex!), 50);
   };
 
-  // --- NOTE PLAYBACK ---
-  const speakText = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  // --- NOTE / GUIDE PLAYBACK ---
+  // Speaks text with the user's chosen voice & speed, signalling completion via
+  // onEnd so callers (e.g. the How It Works read-aloud toggle) can reset state.
+  const speakScript = useCallback((text: string, onEnd: () => void = () => {}) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) { onEnd(); return; }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const activeVoice = settings.voiceURI
@@ -469,8 +595,16 @@ export default function App() {
     }
     utterance.rate = settings.rate;
     utterance.pitch = settings.pitch;
+    utterance.onend = () => onEnd();
+    utterance.onerror = () => onEnd();
     window.speechSynthesis.speak(utterance);
   }, [settings, voices]);
+
+  const stopSpeak = useCallback(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+  }, []);
+
+  const speakText = useCallback((text: string) => speakScript(text), [speakScript]);
 
   const handlePlayNote = (note: ResearchNote) => {
     speakText(`Not ${note.ordinal}, sayfa ${note.sourceAnchor.pageNumber}: ${note.finalNote}`);
@@ -478,17 +612,27 @@ export default function App() {
 
   // --- LIBRARY FILTER / SORT (dashboard) ---
   const libraryLanguages = useMemo(() => listLanguages(libraryEntries), [libraryEntries]);
+  // Document offered for "Okumaya Devam Et" on the home page (most recently
+  // opened doc the user has actually started reading).
+  const continueEntry = useMemo(() => {
+    const lastId = typeof localStorage !== 'undefined' ? localStorage.getItem(PREF_KEYS.lastActiveDocument) : null;
+    return selectContinueEntry(libraryEntries, lastId);
+  }, [libraryEntries]);
   const visibleLibrary = useMemo(() => {
-    const byLang = filterByLanguage(libraryEntries, libraryLang);
+    const byProject = projectFilter
+      ? libraryEntries.filter((e) => e.document.projectId === projectFilter)
+      : libraryEntries;
+    const byLang = filterByLanguage(byProject, libraryLang);
     const searched = searchLibrary(byLang, librarySearch);
     return sortLibrary(searched, librarySort);
-  }, [libraryEntries, libraryLang, librarySearch, librarySort]);
+  }, [libraryEntries, projectFilter, libraryLang, librarySearch, librarySort]);
 
   const languageLabel = (lang: string) =>
     lang === 'tr' ? 'Türkçe' : lang === 'en' ? 'English' : lang.toUpperCase();
 
   return (
     <div className={`flex flex-col bg-canvas dark:bg-slate-950 ${activeArticle ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+      <a href="#main-content" className="skip-link">İçeriğe geç</a>
       <Navbar
         voices={voices}
         settings={settings}
@@ -497,6 +641,9 @@ export default function App() {
         onHandsFreeToggle={() => setIsHandsFreeActive(!isHandsFreeActive)}
         hasArticle={!!activeArticle}
         onClearArticle={handleCloseArticle}
+        onGoHome={handleGoHome}
+        onOpenHowItWorks={() => setIsHowOpen(true)}
+        onStandby={() => setIsStandby(true)}
         articleTitle={displayArticle?.title || activeArticle?.title}
         articleLanguage={activeLanguage}
         isPlaying={isPlaying}
@@ -508,7 +655,7 @@ export default function App() {
       />
 
       {activeArticle ? (
-        <div className="flex flex-1 overflow-hidden">
+        <div id="main-content" className="flex flex-1 overflow-hidden">
           <LeftRail
             active={mobileTab}
             onSelectReader={() => setMobileTab('reader')}
@@ -552,7 +699,7 @@ export default function App() {
                 isHandsFreeActive={isHandsFreeActive}
                 isSavedInLibrary
                 onSaveToLibrary={() => {}}
-                onCloseArticle={handleCloseArticle}
+                onCloseArticle={handleGoHome}
                 activeGraphLine={activeGraphLine}
                 isAwaitingGraphApproval={isAwaitingGraphApproval}
                 graphSummaryText={graphSummaryText}
@@ -575,7 +722,10 @@ export default function App() {
                   documentTitle={activeArticle.title}
                   onJumpToSource={handleJumpToSource}
                   onUpdateNote={(id, patch) => void updateNote(id, patch)}
-                  onDeleteNote={(id) => void deleteNote(id)}
+                  onDeleteNote={(id) => {
+                    void deleteNote(id);
+                    if (activeArticle) void historyRepository.add({ type: 'note_deleted', documentId: activeArticle.id });
+                  }}
                   onPlayNote={handlePlayNote}
                   onExport={() => setIsExportOpen(true)}
                 />
@@ -593,6 +743,7 @@ export default function App() {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onLoadSample={handleLoadSample}
+            onImportUrl={handleImportUrl}
             libraryEntries={visibleLibrary}
             totalLibraryCount={libraryEntries.length}
             librarySearch={librarySearch}
@@ -604,6 +755,19 @@ export default function App() {
             onLibrarySort={setLibrarySort}
             onOpenDocument={handleOpenFromLibrary}
             onRemoveDocument={handleRemoveFromLibrary}
+            onOpenHowItWorks={() => setIsHowOpen(true)}
+            continueEntry={continueEntry}
+            onContinue={handleOpenFromLibrary}
+            projects={projects}
+            projectFilter={projectFilter}
+            onProjectFilter={setProjectFilter}
+            onCreateProject={async (name) => { await createProject(name); }}
+            onRemoveProject={async (id) => { if (projectFilter === id) setProjectFilter(''); await removeProject(id); await reloadLibrary(); }}
+            onAssignProject={async (docId, pid) => { await assignDocument(docId, pid); await reloadLibrary(); void reloadProjects(); }}
+            onOpenHistory={() => setIsHistoryOpen(true)}
+            onOpenInvite={() => setIsInviteOpen(true)}
+            onOpenAssistant={() => setIsAssistantOpen(true)}
+            onOpenAccessibility={() => setIsA11yOpen(true)}
           />
         )}
 
@@ -621,6 +785,37 @@ export default function App() {
           </div>
         </footer>
       )}
+
+      <HowItWorksModal
+        isOpen={isHowOpen}
+        onClose={() => setIsHowOpen(false)}
+        onSpeak={speakScript}
+        onStopSpeak={stopSpeak}
+      />
+
+      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+      <InviteDialog isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
+      <AssistantSettingsModal
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        prefs={assistantPrefs}
+        onSave={handleSaveAssistantPrefs}
+      />
+      <AccessibilitySettingsModal
+        isOpen={isA11yOpen}
+        onClose={() => setIsA11yOpen(false)}
+        prefs={a11yPrefs}
+        onChange={handleChangeA11yPrefs}
+      />
+      <StandbyOverlay
+        isOpen={isStandby}
+        onExit={() => setIsStandby(false)}
+        assistantName={assistantPrefs.assistantName}
+        documentTitle={displayArticle?.title || activeArticle?.title}
+        positionLabel={activeArticle ? `Sayfa ${activeLines[currentLineIdx]?.pageNumber ?? 1}` : undefined}
+        isPlaying={isPlaying}
+        isListening={isHandsFreeActive}
+      />
 
       <PrivacyNotice
         isOpen={isPrivacyOpen}
@@ -652,6 +847,7 @@ export default function App() {
           }}
           onSave={handleSaveResearchNote}
           onRequestClean={aiCleaningEnabled ? handleRequestClean : undefined}
+          knownTags={knownTags}
         />
       )}
 
@@ -663,6 +859,13 @@ export default function App() {
           documentId={activeArticle.id}
           documentTitle={activeArticle.title}
           notes={notes}
+          onExported={(result) => {
+            void historyRepository.add({
+              type: 'export_created',
+              documentId: activeArticle.id,
+              metadata: { title: activeArticle.title, format: result.filename.split('.').pop() ?? '' },
+            });
+          }}
         />
       )}
     </div>

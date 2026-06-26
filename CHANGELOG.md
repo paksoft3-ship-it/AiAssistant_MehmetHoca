@@ -4,6 +4,67 @@ All notable changes to EidosUs (Academic Active Reading Assistant). Updated afte
 
 ## [Unreleased]
 
+### Beta Phase 8/9 — Entitlements & open-source/beta docs (2026-06-26)
+- **Feature-entitlement abstraction** (spec §26): `resolveEntitlement` (tested) — every feature is free in the beta; core reading/notes/export and accessibility are in the always-free set; no ad SDK. A future quota/server resolver can swap in without changing call sites.
+- **Open-source docs**: `CONTRIBUTING.md`, `SECURITY.md` (incl. the SSRF posture), `CODE_OF_CONDUCT.md`.
+- **Beta/readiness docs**: `docs/BETA_TEST_CHECKLIST.md`, `docs/SUSTAINABILITY_MODEL.md`, `docs/FINAL_IMPLEMENTATION_REPORT.md`.
+- **LICENSE**: intentionally not added — flagged for the maintainer's decision (permissive MIT/Apache recommended; a legal choice).
+- Cloud sync (Supabase) remains deferred: the repository pattern already isolates persistence so a cloud repo can be added without UI changes.
+- Verified: `npm run lint` (pass), `npm test` (127 pass, +3), `npm run build` (pass).
+
+### Beta Phase 7 — Accessibility mode & audit (2026-06-26)
+- **Accessibility mode panel** (spec §27): persisted preferences for high contrast, large text, reduced motion, spoken interface hints, and auto-describe figures. Enabling the mode applies root CSS classes (tested `accessibilityClasses` helper); core reading/notes stay free — toggles never gate features.
+- **Skip-to-content link** ("İçeriğe geç") on home and reader, plus a `#main-content` landmark.
+- **Global a11y CSS**: high-contrast borders/text, large-text root scaling, reduced-motion (also honours `prefers-reduced-motion`).
+- Builds on existing dialog semantics (`role="dialog"`/`aria-modal`, Esc + focus handling) and `role="progressbar"` indicators added earlier.
+- **`docs/ACCESSIBILITY_AUDIT.md`** records what's done and the known follow-ups (axe-in-CI, full focus-trap, ARIA live region for the active sentence).
+- Verified: `npm run lint` (pass), `npm test` (124 pass, +3), `npm run build` (pass).
+
+### Beta Phase 6 — Assistant, standby & honest voice messaging (2026-06-26)
+- **Assistant personalization** (spec §15): name the assistant (default "Sokrates"), which doubles as the wake phrase; language, hands-free, and spoken-feedback toggles. Persisted in localStorage; settings modal reachable from the home tools row. Tested normalizer (incl. a blank-name fallback bug the test caught).
+- **Centralized multilingual command map** (`features/assistant/services/commands.ts`, CLAUDE.md §10.4): TR/EN wake-phrase + command phrases with tested `matchWakePhrase` / `matchCommand` (longest-match wins, so "okumayı durdur" beats bare "dur").
+- **Standby interface** (spec §16): a dimmed, low-distraction overlay showing the assistant name, current document, position, and live mic status, with an exit button — reachable from a reader-toolbar button. Honest messaging is part of the UI: it works only while the page is open and may stop when backgrounded/locked.
+- **`docs/NATIVE_APP_ROADMAP.md`**: documents background wake-word / locked-screen / always-on mic as deferred native capabilities the web beta does not claim.
+- Verified: `npm run lint` (pass), `npm test` (121 pass, +7), `npm run build` (pass).
+
+### Beta Phase 5 — Projects, History & Invite (2026-06-26)
+- **Share / Invite** (spec §24): an invite dialog with copy-link, native Web Share, e-mail (mailto — no paid provider), and WhatsApp. Invite links carry no personal data and there are no referral rewards. Logic in a tested `invite.ts`.
+- **Activity History** (spec §22): a new Dexie table + `historyRepository` records uploads, URL imports, opens, note create/delete, exports, and project creation (non-sensitive metadata only — titles/format, never note content). A History timeline modal shows the events with a privacy-aware "Geçmişi Temizle". Event formatting is a tested pure helper.
+- **Projects** (spec §23): a new Dexie table + `projectRepository`/`useProjects`. Create projects, assign documents (per-card selector), filter the library by project, and delete a project (documents are detached, never deleted). `AcademicDocument` gained an optional `projectId`.
+- **Library cards** now show the source domain (for URL imports) and the assigned project.
+- Dexie schema bumped to **v2** (additive: `projects`, `history` tables + `documents.projectId` index; auto-migrates, no data transform).
+- Verified: `npm run lint` (pass), `npm test` (114 pass, +8), `npm run build` (pass).
+
+### Beta Phase 4 — URL / article import (2026-06-26)
+- **"Linkten İçerik Ekle"** on the home page (Beta spec §11): paste a public article or PDF URL and read it like any uploaded document. Source provenance (`sourceUrl`, `sourceDomain`) is preserved on the document.
+- **SSRF-safe server route** `POST /api/import/url` (rate-limited, Zod-validated):
+  - Pure, exhaustively-tested guard (`urlGuard.ts`): http(s)-only, blocks `localhost`/`.local`/`.internal`/metadata hosts, and rejects loopback / private / link-local / CGNAT / IPv4-mapped-private addresses (IPv4 + IPv6).
+  - Network layer (`fetchSource.ts`): **re-resolves and re-validates the host at every redirect hop** (anti-rebinding), 12 s timeout, 6 MB size cap (streamed, defends against lying `Content-Length`), max 5 redirects, content-type allowlist (PDF / HTML / text).
+  - HTML is extracted with **Mozilla Readability** (jsdom) into reading-order paragraphs; PDFs are returned as base64 for the existing client parser; plain text is paragraph-split. Privacy: logs only domain + outcome, never content.
+- New deps: `@mozilla/readability`; `jsdom` promoted to a runtime dependency (server bundle).
+- Verified: `npm run lint` (pass), `npm test` (106 pass, +10 SSRF-guard tests), `npm run build` (pass), and **live smoke tests** against the running server — localhost/private-IP/`file:` correctly rejected (400); a real Wikipedia article imported (191 paragraphs, title + domain resolved); too-thin pages rejected with a clear message.
+
+### Beta Phase 3 — Export center: CSV + XLSX (2026-06-26)
+- **CSV export** (Beta spec §20): RFC-4180 escaping (quotes fields with commas/quotes/newlines), CRLF line endings, and a UTF-8 BOM so Excel renders Turkish characters correctly. Dependency-free.
+- **XLSX export**: a minimal but valid `.xlsx` workbook generated from hand-assembled OOXML + JSZip (declared as a direct dep; lazy-loaded into its own 2.7 kB chunk so the main bundle is unaffected). Integer cells (No/Sayfa) are written as real numbers; text uses inline strings (multi-line notes + Turkish preserved).
+- **Shared tabular core** (`tabularExport.ts`, tested): one row per note with columns honouring the existing field toggles (source excerpt / raw transcript / tags) plus cleaned note, final note, origin, and created date. Both CSV and XLSX render from it, staying column-consistent.
+- Export dialog now offers all five formats (Markdown / DOCX / TXT / CSV / XLSX); `ExportRecord.format` extended accordingly.
+- Verified: `npm run lint` (pass), `npm test` (96 pass), `npm run build` (pass; xlsx in a lazy chunk).
+
+### Beta Phase 2 — Notes: tag UX (2026-06-26)
+- **Academic tag suggestions + autocomplete** (Beta spec §19): a default academic tag catalog (Yöntem, Hipotez, Literatür, Bulgu, …, each with an English mapping for later i18n) plus a tested `suggestTags()` helper that merges the user's own existing tags with the catalog, excludes already-chosen tags, and filters by what's typed after the last comma. Quick-add chips were wired into the note editor; the notes panel already had tag filtering, search, sort, edit, delete, and jump-to-source.
+- Note: exact text-selection anchoring (`SourceAnchor.selectedText`) and the raw/cleaned/final three-field model were already implemented in earlier phases. The **discussion-to-note** conversion flow remains a deferred secondary feature.
+- Verified: `npm run lint` (pass), `npm test` (91 pass), `npm run build` (pass).
+
+### Beta Phase 1 — Navigation & onboarding (2026-06-26)
+- **Reliable Home / browser-back from the reader** (Beta spec §7): the router-less reader now pushes a single history entry when a document opens, so the **browser Back button returns to the home/library** instead of leaving the site — fixing the reported difficulty of getting back from the reader on mobile. The brand logo doubles as a Home control while reading, and the reader top bar has an explicit **"Ana Sayfa"** button (replacing the ambiguous "Kapat"). Returning home preserves the document, notes, and reading position (close ≠ delete).
+- **Unsaved-note guard**: leaving the reader (Home button or hardware Back) while a note is being recorded now prompts for confirmation before discarding the in-progress transcript; cancelling re-pushes the history entry so the user stays put. The guard lives in a single `popstate` handler so both paths behave identically.
+- **Accessible "Nasıl Çalışır?" guide** (Beta spec §8): a dedicated modal (`features/onboarding/`) with 8 numbered steps covering the full workflow (yükle → dinle → durdur → not → tartış → kaydet → devam → dışa aktar). It is keyboard reachable (Esc to close, focus moved in on open and restored on close), announced as `role="dialog"`/`aria-modal`, and includes a **"Sesli Dinle"** read-aloud button that narrates the steps with the user's chosen voice/speed for the accessibility & hands-free cases. Entry points added to the hero ("Nasıl Çalıştığını Gör") and the navbar.
+- Step content is centralized in `howItWorksSteps.ts` (with a tested `buildHowItWorksScript()` narration builder) so it can move to i18n keys later without touching the UI.
+- **"Okumaya Devam Et" (Continue Reading) on home** (Beta spec §10): the app no longer auto-jumps into the reader on load — users land on home, where a prominent card resumes the most-recently-opened started document at its saved position (title, page X / total, % complete, last-opened date, note count, with an ARIA `progressbar`). Selection is handled by a tested `selectContinueEntry()` helper that prefers the last-active document and otherwise the most recently opened *started* document.
+- **Navbar density fix for small screens**: responsive gaps (`gap-sm md:gap-lg`), shrinkable controls (`min-w-0`), and a narrower voice selector on mobile to reduce overflow on phones. (A full per-screen mobile audit + 44px tap-target sweep remains a dedicated next slice.)
+- Verified: `npm run lint` (pass), `npm test` (85 pass, +6), `npm run build` (pass).
+
 ### Phase 7 — Landing, privacy & beta readiness (2026-06-21)
 - **Marketing landing sections** on the dashboard (no-document view): clearer hero, "Who it's for", a **beta waitlist**, and an FAQ — with no fake testimonials, user counts, or university logos (CLAUDE.md §15).
 - **Beta waitlist**: `POST /api/waitlist` (Zod-validated, rate-limited) appends signups to an isolated, git-ignored `data/waitlist.jsonl` (privacy-safe logging — never logs the address). The client `WaitlistForm` falls back to a local queue if the server is unreachable, so it never blocks the app.

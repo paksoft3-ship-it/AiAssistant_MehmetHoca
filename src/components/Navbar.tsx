@@ -12,6 +12,12 @@ interface NavbarProps {
   onHandsFreeToggle: () => void;
   hasArticle: boolean;
   onClearArticle?: () => void;
+  /** Return to the home/library view (with any unsaved-note guard). */
+  onGoHome?: () => void;
+  /** Open the "Nasıl Çalışır?" guide. */
+  onOpenHowItWorks?: () => void;
+  /** Enter the dimmed standby interface. */
+  onStandby?: () => void;
   articleTitle?: string;
   articleLanguage?: string;
   // Playback (reader mode) — rendered in the top bar centre, matching the design.
@@ -31,6 +37,9 @@ export default function Navbar({
   onHandsFreeToggle,
   hasArticle,
   onClearArticle,
+  onGoHome,
+  onOpenHowItWorks,
+  onStandby,
   articleTitle,
   articleLanguage = 'tr',
   isPlaying,
@@ -66,22 +75,30 @@ export default function Navbar({
 
   // Compact "trigger-style" select used in the top bar.
   const triggerSelect =
-    'appearance-none bg-transparent text-sm text-text-muted hover:text-primary-hover focus:text-text focus:outline-none cursor-pointer max-w-[160px] truncate';
+    'appearance-none bg-transparent text-sm text-text-muted hover:text-primary-hover focus:text-text focus:outline-none cursor-pointer max-w-[96px] sm:max-w-[160px] truncate';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-surface dark:border-slate-800 dark:bg-slate-900">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-lg py-md">
-        {/* Brand */}
+        {/* Brand — doubles as the Home control while reading */}
         <div className="flex items-center gap-md">
-          <img alt="EidosUs" src="/logo.png" className="h-8 w-8 rounded-lg object-contain" />
-          <div className="flex flex-col">
-            <span className="font-h1-page-title text-h1-page-title text-primary tracking-tight leading-none">
-              {PRODUCT.name}
-            </span>
-            <span className="font-label-mono text-label-mono text-text-muted dark:text-slate-400">
-              {PRODUCT.taglineTr}
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={hasArticle ? onGoHome : undefined}
+            className={`flex items-center gap-md text-left ${hasArticle && onGoHome ? 'cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40' : 'cursor-default'}`}
+            aria-label={hasArticle ? 'Ana sayfaya dön' : undefined}
+            disabled={!hasArticle}
+          >
+            <img alt="EidosUs" src="/logo.png" className="h-8 w-8 rounded-lg object-contain" />
+            <div className="flex flex-col">
+              <span className="font-h1-page-title text-h1-page-title text-primary tracking-tight leading-none">
+                {PRODUCT.name}
+              </span>
+              <span className="font-label-mono text-label-mono text-text-muted dark:text-slate-400">
+                {PRODUCT.taglineTr}
+              </span>
+            </div>
+          </button>
           {hasArticle && articleTitle && (
             <>
               <div className="mx-sm hidden h-6 w-px bg-border md:block" />
@@ -115,12 +132,18 @@ export default function Navbar({
         )}
 
         {/* Right controls */}
-        <div className="flex items-center gap-lg">
+        <div className="flex min-w-0 items-center gap-sm md:gap-lg">
           {/* Marketing nav (landing only) */}
           {!hasArticle && (
             <nav className="hidden items-center gap-lg text-body-ui md:flex">
               <a href="#library" className="text-text-muted transition-colors hover:text-primary">Kütüphane</a>
-              <a href="#how" className="text-text-muted transition-colors hover:text-primary">Nasıl Çalışır</a>
+              <button
+                type="button"
+                onClick={onOpenHowItWorks}
+                className="text-text-muted transition-colors hover:text-primary"
+              >
+                Nasıl Çalışır
+              </button>
               <a href="#faq" className="text-text-muted transition-colors hover:text-primary">SSS</a>
             </nav>
           )}
@@ -172,15 +195,27 @@ export default function Navbar({
                 <Icon name="mic" className="text-[18px]" />
                 {isHandsFreeActive ? 'Dinleniyor' : 'Eller Serbest'}
               </button>
-              {/* Close */}
-              {onClearArticle && (
+              {/* Standby — dimmed, low-distraction listening screen */}
+              {onStandby && (
                 <button
-                  onClick={onClearArticle}
-                  className="flex items-center gap-1.5 rounded-btn border border-border px-3 py-2 text-sm font-medium text-text-muted transition-colors hover:border-danger/30 hover:bg-danger-soft hover:text-danger"
-                  title="Belgeyi kapat"
+                  onClick={onStandby}
+                  className="hidden h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-muted hover:text-primary sm:flex"
+                  title="Bekleme modu"
+                  aria-label="Bekleme moduna geç"
                 >
-                  <Icon name="close" className="text-[18px]" />
-                  <span className="hidden md:inline">Kapat</span>
+                  <Icon name="bedtime" className="text-[20px]" />
+                </button>
+              )}
+              {/* Home — returns to the library/home, keeping the document and notes */}
+              {(onGoHome ?? onClearArticle) && (
+                <button
+                  onClick={onGoHome ?? onClearArticle}
+                  className="flex items-center gap-1.5 rounded-btn border border-border px-3 py-2 text-sm font-medium text-text-muted transition-colors hover:border-primary/30 hover:bg-primary-soft hover:text-primary"
+                  title="Ana sayfaya dön (belge ve notlar korunur)"
+                  aria-label="Ana sayfaya dön"
+                >
+                  <Icon name="home" className="text-[18px]" />
+                  <span className="hidden sm:inline">Ana Sayfa</span>
                 </button>
               )}
             </>

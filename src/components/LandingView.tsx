@@ -1,9 +1,10 @@
-import type { ChangeEvent, DragEvent, RefObject } from 'react';
+import { useState, type ChangeEvent, type DragEvent, type RefObject } from 'react';
 import { Icon } from './ui/Icon';
 import WaitlistForm from '../features/waitlist/components/WaitlistForm';
 import { formatFileSize } from '../utils/documentParser';
 import type { LibraryEntry } from '../features/documents/services/documentService';
-import type { LibrarySortKey } from '../features/library/services/libraryQueries';
+import type { ResearchProject } from '../types/domain';
+import { type LibrarySortKey, progressRatio } from '../features/library/services/libraryQueries';
 
 export interface LandingViewProps {
   isParsing: boolean;
@@ -14,6 +15,7 @@ export interface LandingViewProps {
   onDragOver: (e: DragEvent) => void;
   onDrop: (e: DragEvent) => void;
   onLoadSample: () => void;
+  onImportUrl: (url: string) => void;
   libraryEntries: LibraryEntry[];
   totalLibraryCount: number;
   librarySearch: string;
@@ -25,6 +27,21 @@ export interface LandingViewProps {
   onLibrarySort: (v: LibrarySortKey) => void;
   onOpenDocument: (id: string) => void;
   onRemoveDocument: (id: string) => void;
+  onOpenHowItWorks: () => void;
+  /** Document to offer for "Okumaya Devam Et" (null = none started yet). */
+  continueEntry: LibraryEntry | null;
+  onContinue: (id: string) => void;
+  // Projects + activity (Beta Phase 5)
+  projects: ResearchProject[];
+  projectFilter: string;
+  onProjectFilter: (id: string) => void;
+  onCreateProject: (name: string) => void | Promise<void>;
+  onRemoveProject: (id: string) => void | Promise<void>;
+  onAssignProject: (documentId: string, projectId: string | null) => void | Promise<void>;
+  onOpenHistory: () => void;
+  onOpenInvite: () => void;
+  onOpenAssistant: () => void;
+  onOpenAccessibility: () => void;
 }
 
 const FAQ = [
@@ -50,15 +67,37 @@ function languageLabel(lang: string) {
   return lang === 'tr' ? 'TR' : lang === 'en' ? 'EN' : lang.toUpperCase();
 }
 
+function formatLastOpened(iso?: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export default function LandingView(props: LandingViewProps) {
   const {
     isParsing, parsingPercent, parsingError, fileInputRef, onInputFileChange, onDragOver, onDrop,
-    onLoadSample, libraryEntries, totalLibraryCount, librarySearch, onLibrarySearch, libraryLang,
+    onLoadSample, onImportUrl, libraryEntries, totalLibraryCount, librarySearch, onLibrarySearch, libraryLang,
     onLibraryLang, libraryLanguages, librarySort, onLibrarySort, onOpenDocument, onRemoveDocument,
+    onOpenHowItWorks, continueEntry, onContinue,
+    projects, projectFilter, onProjectFilter, onCreateProject, onRemoveProject, onAssignProject,
+    onOpenHistory, onOpenInvite, onOpenAssistant, onOpenAccessibility,
   } = props;
 
+  const [urlValue, setUrlValue] = useState('');
+  const [newProject, setNewProject] = useState('');
+  const projectName = (id?: string) => projects.find((p) => p.id === id)?.name;
+  const submitProject = () => {
+    const v = newProject.trim();
+    if (v) { void onCreateProject(v); setNewProject(''); }
+  };
+  const submitUrl = () => {
+    const v = urlValue.trim();
+    if (v && !isParsing) onImportUrl(v);
+  };
+
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-xl px-lg py-xl">
+    <main id="main-content" className="mx-auto flex max-w-7xl flex-col gap-xl px-lg py-xl">
       {/* Hero */}
       <section className="mx-auto flex max-w-3xl flex-col items-center gap-lg py-xl text-center">
         <span className="rounded-full border border-primary-fixed-dim bg-primary-soft px-4 py-1.5 font-label-mono text-label-mono text-primary">
@@ -71,7 +110,61 @@ export default function LandingView(props: LandingViewProps) {
           PDF, DOCX veya TXT belgenizi yükleyin. Okurken zihninizde beliren fikirleri konuşarak
           kaydedin, EidosUs bunları anında akademik referanslı notlara dönüştürsün.
         </p>
+        <button
+          type="button"
+          onClick={onOpenHowItWorks}
+          className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-surface px-4 py-2 font-small text-small font-medium text-text transition-colors hover:border-primary/30 hover:bg-primary-soft hover:text-primary dark:bg-slate-900"
+        >
+          <Icon name="play_circle" className="text-[18px]" />
+          Nasıl Çalıştığını Gör
+        </button>
       </section>
+
+      {/* Continue reading — resume the last started document at its saved spot */}
+      {continueEntry && (() => {
+        const doc = continueEntry.document;
+        const percent = Math.round(progressRatio(continueEntry) * 100);
+        const page = doc.lastReadAnchor?.pageNumber;
+        const lastOpened = formatLastOpened(doc.lastOpenedAt);
+        return (
+          <section aria-label="Okumaya devam et" className="mx-auto w-full max-w-3xl">
+            <div className="flex flex-col gap-md rounded-card border border-primary/20 bg-primary-soft p-lg sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="flex items-center gap-1.5 font-label-mono text-label-mono uppercase tracking-widest text-primary">
+                  <Icon name="resume" className="text-[16px]" />
+                  Okumaya Devam Et
+                </span>
+                <h2 className="truncate font-h3-card-title text-h3-card-title text-deep-navy dark:text-white">{doc.title}</h2>
+                <div className="flex flex-wrap items-center gap-x-md gap-y-1 font-small text-small text-text-muted">
+                  {page != null && <span>Sayfa {page}{doc.pageCount ? ` / ${doc.pageCount}` : ''}</span>}
+                  {percent > 0 && <span>%{percent} tamamlandı</span>}
+                  {lastOpened && <span>Son açılma: {lastOpened}</span>}
+                  {continueEntry.noteCount > 0 && <span>{continueEntry.noteCount} not</span>}
+                </div>
+                {percent > 0 && (
+                  <div
+                    className="mt-1 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-surface"
+                    role="progressbar"
+                    aria-valuenow={percent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onContinue(doc.id)}
+                className="inline-flex flex-none items-center justify-center gap-1.5 rounded-btn bg-primary px-5 py-2.5 font-small text-small font-medium text-on-primary transition-colors hover:bg-primary-hover"
+              >
+                <Icon name="play_arrow" className="text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }} />
+                Devam Et
+              </button>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Upload */}
       <section className="mx-auto flex w-full max-w-3xl flex-col gap-md">
@@ -126,6 +219,40 @@ export default function LandingView(props: LandingViewProps) {
           </div>
         )}
 
+        {/* Import from link */}
+        <div className="flex flex-col gap-sm rounded-card border border-border bg-surface p-lg dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-sm">
+            <Icon name="link" className="text-[20px] text-primary" />
+            <h3 className="font-h3-card-title text-h3-card-title text-on-surface dark:text-white">Linkten İçerik Ekle</h3>
+          </div>
+          <p className="font-small text-small text-text-muted">
+            Herkese açık bir makale sayfası veya PDF bağlantısı yapıştırın. İçerik sunucumuz üzerinden
+            güvenle alınır. Ödeme duvarı arkasındaki veya giriş gerektiren sayfalar desteklenmez.
+          </p>
+          <form
+            onSubmit={(e) => { e.preventDefault(); submitUrl(); }}
+            className="flex flex-col gap-sm sm:flex-row"
+          >
+            <input
+              type="url"
+              inputMode="url"
+              value={urlValue}
+              onChange={(e) => setUrlValue(e.target.value)}
+              placeholder="https://ornek.com/makale"
+              aria-label="İçe aktarılacak bağlantı"
+              className="min-w-0 flex-1 rounded-btn border border-border bg-surface px-4 py-2.5 font-small text-small outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-200"
+            />
+            <button
+              type="submit"
+              disabled={isParsing || !urlValue.trim()}
+              className="inline-flex flex-none items-center justify-center gap-1.5 rounded-btn bg-primary px-5 py-2.5 font-small text-small font-medium text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
+            >
+              <Icon name="download" className="text-[18px]" />
+              İçe Aktar
+            </button>
+          </form>
+        </div>
+
         <div className="flex flex-col items-center justify-between gap-md rounded-card border border-primary-fixed-dim bg-primary-soft p-lg sm:flex-row dark:border-indigo-900/30 dark:bg-indigo-950/20">
           <div className="flex items-center gap-md">
             <Icon name="description" className="text-[24px] text-primary" />
@@ -138,6 +265,38 @@ export default function LandingView(props: LandingViewProps) {
             Örnek Makaleyle Dene
           </button>
         </div>
+      </section>
+
+      {/* Tools: activity history + invite (always reachable) */}
+      <section className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-center gap-sm">
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-surface px-4 py-2 font-small text-small font-medium text-text transition-colors hover:bg-surface-muted dark:bg-slate-900"
+        >
+          <Icon name="history" className="text-[18px]" /> Etkinlik Geçmişi
+        </button>
+        <button
+          type="button"
+          onClick={onOpenInvite}
+          className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-surface px-4 py-2 font-small text-small font-medium text-text transition-colors hover:bg-surface-muted dark:bg-slate-900"
+        >
+          <Icon name="group_add" className="text-[18px]" /> Arkadaşını Davet Et
+        </button>
+        <button
+          type="button"
+          onClick={onOpenAssistant}
+          className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-surface px-4 py-2 font-small text-small font-medium text-text transition-colors hover:bg-surface-muted dark:bg-slate-900"
+        >
+          <Icon name="assistant" className="text-[18px]" /> Asistan Ayarları
+        </button>
+        <button
+          type="button"
+          onClick={onOpenAccessibility}
+          className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-surface px-4 py-2 font-small text-small font-medium text-text transition-colors hover:bg-surface-muted dark:bg-slate-900"
+        >
+          <Icon name="accessibility_new" className="text-[18px]" /> Erişilebilirlik
+        </button>
       </section>
 
       {/* Library */}
@@ -180,6 +339,38 @@ export default function LandingView(props: LandingViewProps) {
             </div>
           </div>
 
+          {/* Projects: filter + create */}
+          <div className="flex flex-wrap items-center gap-sm">
+            <button
+              onClick={() => onProjectFilter('')}
+              className={`rounded-full px-3 py-1 font-small text-small transition-colors ${projectFilter === '' ? 'border border-primary/20 bg-primary-soft font-medium text-primary' : 'border border-border bg-surface text-text-muted hover:bg-surface-muted'}`}
+            >
+              Tüm Belgeler
+            </button>
+            {projects.map((p) => (
+              <span key={p.id} className={`inline-flex items-center gap-1 rounded-full pl-3 pr-1 py-1 font-small text-small transition-colors ${projectFilter === p.id ? 'border border-primary/20 bg-primary-soft text-primary' : 'border border-border bg-surface text-text-muted'}`}>
+                <button onClick={() => onProjectFilter(projectFilter === p.id ? '' : p.id)} className="font-medium">
+                  {p.name}
+                </button>
+                <button onClick={() => onRemoveProject(p.id)} className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-danger-soft hover:text-danger" title="Projeyi sil" aria-label={`${p.name} projesini sil`}>
+                  <Icon name="close" className="text-[14px]" />
+                </button>
+              </span>
+            ))}
+            <form onSubmit={(e) => { e.preventDefault(); submitProject(); }} className="flex items-center gap-1">
+              <input
+                value={newProject}
+                onChange={(e) => setNewProject(e.target.value)}
+                placeholder="Yeni proje…"
+                aria-label="Yeni proje adı"
+                className="w-32 rounded-full border border-dashed border-border bg-surface px-3 py-1 font-small text-small outline-none focus:border-focus-ring focus:ring-1 focus:ring-focus-ring dark:bg-slate-900"
+              />
+              <button type="submit" disabled={!newProject.trim()} className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-on-primary disabled:opacity-40" title="Proje ekle" aria-label="Proje ekle">
+                <Icon name="add" className="text-[18px]" />
+              </button>
+            </form>
+          </div>
+
           <div className="flex flex-col gap-md">
             {libraryEntries.length === 0 && (
               <p className="py-6 text-center font-small text-small text-text-muted">Eşleşen belge bulunamadı.</p>
@@ -207,7 +398,32 @@ export default function LandingView(props: LandingViewProps) {
                           <span className="font-medium text-primary">{noteCount} NOT</span>
                         </>
                       )}
+                      {doc.sourceDomain && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-0.5"><Icon name="link" className="text-[12px]" />{doc.sourceDomain}</span>
+                        </>
+                      )}
+                      {projectName(doc.projectId) && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-0.5 text-primary"><Icon name="folder" className="text-[12px]" />{projectName(doc.projectId)}</span>
+                        </>
+                      )}
                     </div>
+                    {projects.length > 0 && (
+                      <select
+                        value={doc.projectId ?? ''}
+                        onChange={(e) => void onAssignProject(doc.id, e.target.value || null)}
+                        aria-label="Projeye ata"
+                        className="mt-1 w-fit rounded-btn border border-border bg-surface px-2 py-1 font-label-mono text-label-mono text-text-muted outline-none focus:ring-1 focus:ring-focus-ring dark:bg-slate-900"
+                      >
+                        <option value="">Projesiz</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 flex w-full items-center gap-sm sm:mt-0 sm:w-auto">
