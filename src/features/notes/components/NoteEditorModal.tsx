@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { NoteOrigin } from '../../../types/domain';
-import { parseTagInput } from '../services/noteFactory';
+import { parseTagInput, normalizeTags } from '../services/noteFactory';
+import { suggestTags } from '../services/tagCatalog';
 import { Icon } from '../../../components/ui/Icon';
 import { Portal } from '../../../components/ui/Portal';
 import { isSpeechRecognitionSupported } from '../../speech/services/capabilities';
@@ -44,6 +45,8 @@ export interface NoteEditorModalProps {
   onClearTranscript: () => void;
   onSave: (data: NoteEditorSaveData) => void;
   onRequestClean?: (raw: string, excerpt: string) => Promise<CleanNoteResponse>;
+  /** Tags already used across the user's notes, for autocomplete/quick-add. */
+  knownTags?: string[];
 }
 
 export default function NoteEditorModal({
@@ -62,6 +65,7 @@ export default function NoteEditorModal({
   onClearTranscript,
   onSave,
   onRequestClean,
+  knownTags = [],
 }: NoteEditorModalProps) {
   const [rawText, setRawText] = useState('');
   const [finalText, setFinalText] = useState('');
@@ -127,6 +131,12 @@ export default function NoteEditorModal({
   };
 
   const canSave = (finalText.trim() || rawText.trim()).length > 0;
+  const selectedTags = parseTagInput(tagsInput);
+  // Quick-add suggestions: user's own tags first, then the academic catalog,
+  // filtered by what's already typed after the last comma.
+  const lastToken = tagsInput.split(',').pop()?.trim() ?? '';
+  const tagSuggestions = suggestTags(lastToken, { selected: selectedTags, existing: knownTags, limit: 10 });
+  const addTag = (tag: string) => setTagsInput(normalizeTags([...selectedTags, tag]).join(', '));
   const labelCls = 'font-small text-small font-medium text-text dark:text-slate-300';
   const textareaCls =
     'w-full resize-none rounded-xl border border-border bg-surface p-md font-body-ui text-body-ui text-text transition-shadow focus:border-focus-ring focus:ring-2 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-100';
@@ -273,6 +283,21 @@ export default function NoteEditorModal({
                 className="w-full rounded-xl border border-border bg-surface py-sm pl-[40px] pr-md font-small text-small text-text transition-shadow focus:border-focus-ring focus:ring-2 focus:ring-focus-ring dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
+            {tagSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-xs pt-xs">
+                {tagSuggestions.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => addTag(tag)}
+                    className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface-muted px-2.5 py-1 font-small text-small text-text-muted transition-colors hover:border-primary/30 hover:bg-primary-soft hover:text-primary"
+                  >
+                    <Icon name="add" className="text-[14px]" />
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
