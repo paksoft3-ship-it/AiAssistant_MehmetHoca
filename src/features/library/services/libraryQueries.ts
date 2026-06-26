@@ -9,6 +9,31 @@ export function progressRatio(entry: LibraryEntry): number {
   return Math.min(1, Math.max(0, lastReadAnchor.pageNumber / pageCount));
 }
 
+/**
+ * Picks the document to offer for "Okumaya Devam Et" (Continue Reading) on the
+ * home page: the most-recently-opened document the user has actually started
+ * reading. Prefers `lastActiveId` if it qualifies, otherwise the most recently
+ * opened entry that has a reading anchor. Returns null when nothing qualifies.
+ */
+export function selectContinueEntry(
+  entries: LibraryEntry[],
+  lastActiveId?: string | null,
+): LibraryEntry | null {
+  const started = entries.filter((e) => !!e.document.lastReadAnchor);
+  if (started.length === 0) return null;
+
+  if (lastActiveId) {
+    const preferred = started.find((e) => e.document.id === lastActiveId);
+    if (preferred) return preferred;
+  }
+
+  return started.reduce((latest, e) => {
+    const t = e.document.lastOpenedAt ?? e.document.updatedAt;
+    const best = latest.document.lastOpenedAt ?? latest.document.updatedAt;
+    return t > best ? e : latest;
+  });
+}
+
 /** Case-insensitive search over document titles, authors, and filename. */
 export function searchLibrary(entries: LibraryEntry[], query: string): LibraryEntry[] {
   const q = query.trim().toLocaleLowerCase('tr');

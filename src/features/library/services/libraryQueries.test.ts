@@ -7,6 +7,7 @@ import {
   listLanguages,
   sortLibrary,
   progressRatio,
+  selectContinueEntry,
 } from './libraryQueries';
 
 function doc(p: Partial<AcademicDocument> & { id: string; title: string }): AcademicDocument {
@@ -70,5 +71,27 @@ describe('progressRatio', () => {
   it('computes a bounded ratio from the last read anchor', () => {
     expect(progressRatio(entries[0])).toBeCloseTo(0.5);
     expect(progressRatio(entries[1])).toBe(0);
+  });
+});
+
+describe('selectContinueEntry', () => {
+  it('returns null when no document has been started', () => {
+    expect(selectContinueEntry([entries[1], entries[2]])).toBeNull();
+    expect(selectContinueEntry([])).toBeNull();
+  });
+
+  it('picks the only started document regardless of others', () => {
+    expect(selectContinueEntry(entries)?.document.id).toBe('a');
+  });
+
+  it('prefers lastActiveId when that document has been started', () => {
+    const started = [
+      entry(doc({ id: 'x', title: 'X', lastOpenedAt: '2026-06-22T00:00:00.000Z', lastReadAnchor: { documentId: 'x', pageNumber: 2, globalIndex: 1 } })),
+      entry(doc({ id: 'y', title: 'Y', lastOpenedAt: '2026-06-25T00:00:00.000Z', lastReadAnchor: { documentId: 'y', pageNumber: 3, globalIndex: 2 } })),
+    ];
+    // Most recent is y, but lastActiveId x qualifies → prefer x.
+    expect(selectContinueEntry(started, 'x')?.document.id).toBe('x');
+    // lastActiveId that hasn't been started falls back to most-recent.
+    expect(selectContinueEntry(started, 'unknown')?.document.id).toBe('y');
   });
 });
